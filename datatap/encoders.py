@@ -8,6 +8,11 @@ except ImportError:
 from django.core.serializers.json import DjangoJSONEncoder
 
 
+class SerializableObject(object):
+    def __init__(self, data, files={}):
+        self.data = data
+        self.files = files #path=file_obj
+
 class ObjectIteratorAdaptor(collections.Iterable):
     '''
     Helper class to adapt an object stream to a standardized object representation stream.
@@ -17,7 +22,7 @@ class ObjectIteratorAdaptor(collections.Iterable):
         self.object_iterator = object_iterator
     
     def transform(self, obj):
-        return obj
+        return SerializableObject(obj)
     
     def __iter__(self):
         for obj in self.object_iterator:
@@ -32,4 +37,6 @@ class DataTapJSONEncoder(DjangoJSONEncoder):
         if isinstance(obj, ObjectIteratorAdaptor):
             #TODO can we iterate through this instead?
             return list(obj)
+        if isinstance(obj, SerializableObject):
+            return obj.data
         return super(HyperadminJSONEncoder, self).default(obj)

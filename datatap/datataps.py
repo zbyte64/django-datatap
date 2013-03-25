@@ -27,11 +27,13 @@ Example usage:
 
 import json
 import logging
+import zipfile
 
 from django.db import models
+from django.core.files import File
 from django.utils.encoding import smart_unicode, is_protected_type
 
-from datatap.encoders import ObjectIteratorAdaptor, DataTapJSONEncoder
+from datatap.encoders import SerializableObject, ObjectIteratorAdaptor, DataTapJSONEncoder
 
 
 class DataTap(object):
@@ -78,7 +80,7 @@ class DataTap(object):
     
     def get_item_stream(self):
         '''
-        Returns an iterable of standardized items belonging to this data tap
+        Returns an iterable of `SerializableObject`s belonging to this data tap
         '''
         object_iterator = self.get_raw_item_stream()
         return self.get_object_iterator_adaptor(object_iterator=object_iterator)
@@ -123,13 +125,22 @@ class DataTap(object):
         Stores an item
         :param item: a json serializable dictionary
         '''
-        return item
+        for path, file_obj in item.files.iteritems():
+            self.write_file(file_obj, path)
+        return item.data
     
     def write_file(self, file_obj, path):
         '''
-        Store a data file
+        Store a data file. 
+        Returns the internal location of the path to be used for deserialization
         '''
-        pass
+        return None
+    
+    def read_file(self, path):
+        '''
+        Returns a django file object belonging to the serialized path
+        '''
+        return None
     
     def get_raw_item_stream(self):
         '''
@@ -168,24 +179,74 @@ class JSONStreamDataTap(DataTap):
         return json.load(self.stream)
     
     def write_stream(self, instream):
+        #TODO ideally we would pass in a data tap responsible for write_file
+        #the encoder would automajically convert file items?
+        #or do we handle this at the adaptor level? (which means get_item_stream becomes more complex)
+        #get_raw_item_stream(filetap=SomeZipFile)
+        #alternatively item stream yields SerializableObject
+        #SerializableObject => dict, files
         json.dump(instream, self.stream, cls=DataTapJSONEncoder)
     
     def write_item(self, item):
         json.dump(item, self.stream, cls=DataTapJSONEncoder)
 
+class ZipFileDataTap(DataTap):
+    '''
+    Reads and writes objects from a zipfile
+    '''
+    def __init__(self, filename, **kwargs):
+        self.filename = filename
+        super(ZipFileDataTap, self).__init__(**kwargs)
+    
+    def open(self, mode='r'):
+        self.zipfile = zipfile.ZipFile(self.filename, mode)
+        self.object_stream_file = self.zipfile.open('manifest.json', mode)
+        self.object_stream = JSONStreamDataTap(self.object_stream_file)
+    
+    def close(self):
+        self.object_stream.close()
+        self.zipfile.close()
+    
+    def write_stream(self, instream):
+        self.object_stream.write_stream(instream)
+    
+    def write_item(self, item):
+        self.object_stream.write_item(item)
+    
+    def write_file(self, file_obj, path):
+        #TODO review this
+        self.zipfile.open(path, 'wb').write(file_obj.read())
+        return path
+    
+    def read_file(self, path):
+        return self.zipfile.open(path, 'rb')
+    
+    def get_raw_item_stream(self):
+        return self.object_stream.get_item_stream()
+
 class ModelIteratorAdaptor(ObjectIteratorAdaptor):
     def transform(self, obj):
         fields = dict()
+        files = dict() #fields that are file fields
         for field in obj._meta.fields:
             value = field._get_val_from_obj(obj)
             #TODO foreign keys and many to many fields
-            fields[field.name] = value
-        return {
+            if isinstance(value, File):
+                files[field.name] = value
+            else:
+                fields[field.name] = value
+            
+        data = {
             "model"  : smart_unicode(obj._meta),
             "pk"     : smart_unicode(obj._get_pk_val(), strings_only=True),
-            "fields" : fields
+            "fields" : fields,
         }
+        #TODO this isn't good enough, could we have a file_promise like a translation promise?
+        return SerializableObject(data=data, files=files)
 
+#TODO m2m
+#TODO should we return deserialized object?
+#TODO natural keys
 class ModelDataTap(DataTap):
     '''
     Reads and writes from Django's ORM
@@ -235,7 +296,6 @@ class ModelDataTap(DataTap):
 
 class ResourceIteratorAdaptor(ObjectIteratorAdaptor):
     def prepare_field_value(self, val):
-        from django.core.files import File
         if isinstance(val, File):
             if hasattr(val, 'name'):
                 val = val.name
@@ -244,35 +304,51 @@ class ResourceIteratorAdaptor(ObjectIteratorAdaptor):
         return val
     
     def get_form_instance_values(self, form):
-        data = dict()
+        fields = dict()
         for name, field in form.fields.iteritems():
             val = form[name].value()
             val = self.prepare_field_value(val)
-            data[name] = val
-        return data
+            fields[name] = val
+        return fields
     
     def transform(self, obj):
-        standard_item = self.get_form_instance_values(obj.form)
-        return standard_item
+        fields = self.get_form_instance_values(obj.form)
+        return {
+            'endpoint': obj.endpoint.get_url_name(),
+            'fields': fields,
+        }
 
 class ResourceDataTap(DataTap):
     '''
     Binds a data tap to the items belonging to a resource
     '''
-    def __init__(self, resource, **kwargs):
-        self.resource = resource
+    def __init__(self, *item_sources, **kwargs):
+        self.item_sources = item_sources or []
         super(ResourceDataTap, self).__init__(**kwargs)
     
     def get_object_iterator_class(self):
         return ResourceIteratorAdaptor
     
-    def get_resource(self):
+    def get_items_from_resource(self, endpoint):
         #TODO: wrap in an api call
-        return self.resource
+        return endpoint.get_resource_items() #or get_items()
+    
+    def get_resource(self, urlname):
+        raise NotImplementedError, 'TODO'
     
     def get_raw_item_stream(self):
-        #TODO convert item representation
-        return self.get_resource().get_resource_items()
+        from hyperadmin.endpoints import Endpoint
+        for source in self.item_sources:
+            try:
+                is_endpoint = issubclass(source, Endpoint)
+            except TypeError:
+                is_endpoint = False
+            if is_endpoint:
+                items = self.get_items_from_resource(source)
+            else:
+                items = source
+            for item in items:
+                yield item
 
 class CRUDResourceDataTap(ResourceDataTap):
     '''
@@ -280,9 +356,10 @@ class CRUDResourceDataTap(ResourceDataTap):
     '''
     def write_item(self, item):
         #item key/value => create form of resource
-        endpoint = self.get_resource().endpoints['create']
+        url_name = item['endpoint']
+        endpoint = self.get_resource(url_name).endpoints['create']
         #TODO what about files?
-        link = endpoint.get_link().submit({'data':item})
+        link = endpoint.get_link().submit({'data':item['fields']})
         return link.state.get_resource_item()
 
 
