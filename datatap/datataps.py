@@ -126,7 +126,7 @@ class DataTap(object):
         :param instream: an iterable of standardized items
         '''
         for item in instream:
-            self.store_item(item)
+            self.write_item(item)
     
     def write_item(self, item):
         '''
@@ -147,6 +147,25 @@ class DataTap(object):
         '''
         return []
 
+class MemoryDataTap(DataTap):
+    '''
+    Reads and writes from a stream stored in memory
+    '''
+    def __init__(self, object_stream=None, **kwargs):
+        if object_stream is None:
+            object_stream = list()
+        self.object_stream = object_stream
+        super(MemoryDataTap, self).__init__(**kwargs)
+    
+    def get_raw_item_stream(self):
+        def consumer():
+            while self.object_stream:
+                yield self.object_stream.pop(0)
+        return consumer()
+    
+    def write_item(self, item):
+        self.object_stream.append(item)
+
 class JSONStreamDataTap(DataTap):
     '''
     Reads and writes from a stream serialized with json
@@ -159,7 +178,7 @@ class JSONStreamDataTap(DataTap):
         return json.load(self.stream)
     
     def write_stream(self, instream):
-        json.dump(instream.get_item_stream(), self.stream)
+        json.dump(instream, self.stream)
     
     def write_item(self, item):
         json.dump(item, self.stream)
@@ -190,11 +209,16 @@ class ModelDataTap(DataTap):
     
     def get_raw_item_stream(self):
         for source in self.model_sources:
-            if isinstance(source, models.Model):
+            try:
+                is_model = issubclass(source, models.Model)
+            except TypeError:
+                is_model = False
+            
+            if is_model:
                 queryset = source.objects.all()
             else:
                 queryset = source
-            for item in queryset.iteretator():
+            for item in queryset.iterator():
                 yield item
     
     #TODO store_stream => bulk create
@@ -205,7 +229,7 @@ class ModelDataTap(DataTap):
         model = self.get_model(item['model'])
         params = item['fields']
         params['pk'] = item['pk']
-        return model.create(**params)
+        return model.objects.create(**params)
     
     def get_model(self, model_identifier):
         """
