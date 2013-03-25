@@ -1,4 +1,5 @@
 from StringIO import StringIO
+import json
 
 from django.utils import unittest
 from django.contrib.contenttypes.models import ContentType
@@ -93,29 +94,31 @@ class ModelDataTapTestCase(unittest.TestCase):
         self.assertEqual(len(items), ContentType.objects.all().count() + Group.objects.all().count())
         tap.close()
 
-'''
-Example usage:
-
-    #with django models
-    outstream = JSONDataTap(stream=sys.stdout)
-    outstream.open('w')
-    ModelDataTap.store(outstream, MyModel, User.objects.filter(is_active=True))
-    outstream.close()
+class ModelToJsonIntegrationTestCase(unittest.TestCase):
+    def test_store(self):
+        iostream = StringIO()
+        outstream = JSONStreamDataTap(stream=iostream)
+        outstream.open('w')
+        response = ModelDataTap.store(outstream, ContentType)
+        items = json.loads(iostream.getvalue())
+        outstream.close()
+        self.assertEqual(len(items), ContentType.objects.all().count())
     
-    instream = JSONDataTap(stream=open('fixture.json', 'r'))
-    ModelDataTap.load(instream)
-    
-    
-    #with hyperadmin resources
-    outstream = JSONDataTap(stream=sys.stdout)
-    outstream.open('w')
-    ResourceDataTap.store(outstream, MyResource)
-    outstream.close()
-    
-    instream = JSONDataTap(stream=open('fixture.json', 'r'))
-    ResourceDataTap.load(instream)
-    
-    #or with substitutions
-    instream = JSONDataTap(stream=open('fixture.json', 'r'))
-    ResourceDataTap.load(instream, mapping={'myresource_resource':'target_resource'})
-'''
+    def test_load(self):
+        Group.objects.all().delete()
+        item = {
+            'model': 'auth.group',
+            'pk':5,
+            'fields': {
+                'name': 'testgroup',
+            }
+        }
+        iostream = StringIO(json.dumps([item]))
+        instream = JSONStreamDataTap(stream=iostream)
+        instream.open('r')
+        result = ModelDataTap.load(instream)
+        instream.close()
+        
+        self.assertEqual(len(result), 1)
+        self.assertTrue(isinstance(result[0], Group))
+        self.assertEqual(result[0].name, 'testgroup')

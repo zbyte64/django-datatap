@@ -2,26 +2,26 @@
 Example usage:
 
     #with django models
-    outstream = JSONDataTap(stream=sys.stdout)
+    outstream = JSONStreamDataTap(stream=sys.stdout)
     outstream.open('w')
     ModelDataTap.store(outstream, MyModel, User.objects.filter(is_active=True))
     outstream.close()
     
-    instream = JSONDataTap(stream=open('fixture.json', 'r'))
+    instream = JSONStreamDataTap(stream=open('fixture.json', 'r'))
     ModelDataTap.load(instream)
     
     
     #with hyperadmin resources
-    outstream = JSONDataTap(stream=sys.stdout)
+    outstream = JSONStreamDataTap(stream=sys.stdout)
     outstream.open('w')
     ResourceDataTap.store(outstream, MyResource)
     outstream.close()
     
-    instream = JSONDataTap(stream=open('fixture.json', 'r'))
+    instream = JSONStreamDataTap(stream=open('fixture.json', 'r'))
     ResourceDataTap.load(instream)
     
     #or with substitutions
-    instream = JSONDataTap(stream=open('fixture.json', 'r'))
+    instream = JSONStreamDataTap(stream=open('fixture.json', 'r'))
     ResourceDataTap.load(instream, mapping={'myresource_resource':'target_resource'})
 '''
 
@@ -31,21 +31,8 @@ import logging
 from django.db import models
 from django.utils.encoding import smart_unicode, is_protected_type
 
+from datatap.encoders import ObjectIteratorAdaptor, DataTapJSONEncoder
 
-class ObjectIteratorAdaptor(object):
-    '''
-    Helper class to adapt an object stream to a standardized object representation stream.
-    Standardized objects are any python datastructures that are json serializable.
-    '''
-    def __init__(self, object_iterator):
-        self.object_iterator = object_iterator
-    
-    def transform(self, obj):
-        return obj
-    
-    def __iter__(self):
-        for obj in self.object_iterator:
-            yield self.transform(obj)
 
 class DataTap(object):
     @classmethod
@@ -65,7 +52,7 @@ class DataTap(object):
         
         :param datatap: The datatap to write to
         '''
-        datatap.write_stream(self.get_item_stream())
+        return datatap.write_stream(self.get_item_stream())
     
     @classmethod
     def load(cls, datatap, *args, **kwargs):
@@ -85,8 +72,9 @@ class DataTap(object):
         :param datatap: The datatap to read from
         '''
         self.open(mode='r')
-        self.write_stream(datatap.get_item_stream())
+        result = self.write_stream(datatap.get_item_stream())
         self.close()
+        return result
     
     def get_item_stream(self):
         '''
@@ -125,8 +113,10 @@ class DataTap(object):
         Processes an incomming data tap into this data tap
         :param instream: an iterable of standardized items
         '''
+        collector = list()
         for item in instream:
-            self.write_item(item)
+            collector.append(self.write_item(item))
+        return collector
     
     def write_item(self, item):
         '''
@@ -178,10 +168,10 @@ class JSONStreamDataTap(DataTap):
         return json.load(self.stream)
     
     def write_stream(self, instream):
-        json.dump(instream, self.stream)
+        json.dump(instream, self.stream, cls=DataTapJSONEncoder)
     
     def write_item(self, item):
-        json.dump(item, self.stream)
+        json.dump(item, self.stream, cls=DataTapJSONEncoder)
 
 class ModelIteratorAdaptor(ObjectIteratorAdaptor):
     def transform(self, obj):
