@@ -35,7 +35,7 @@ from django.db import models
 from django.utils.encoding import smart_unicode, is_protected_type
 
 from datatap.encoders import ObjectIteratorAdaptor, DataTapJSONEncoder, DataTapJSONDecoder
-from datatap.loading import register_datatap
+from datatap.loading import register_datatap, lookup_datatap
 
 
 class DataTap(object):
@@ -95,11 +95,23 @@ class DataTap(object):
     
     #begin non-public methods that should be implemented
     
-    def open(self, mode='r'):
+    def open(self, mode='r', for_datatap=None):
+        '''
+        Open the DataTap for data operations.
+        
+        :param mode: r for read, w for write
+        :param for_datatap: The datatap we are opening for. If this is a read then attempt to check if it is compatible with the originating datap. If this is a write then store the datatap type.
+        '''
+        self.mode = mode
+    
+    def detect_originating_datatap(self):
+        '''
+        If this is a datatap we are reading from then return the datatap that was used for populating this datatap
+        '''
         pass
 
     def close(self):
-        pass
+        self.mode = None
     
     def get_logger(self):
         return logging.getLogger(__name__)
@@ -237,14 +249,19 @@ class ZipFileDataTap(DataTap):
         self.filename = filename
         super(ZipFileDataTap, self).__init__(**kwargs)
     
-    def open(self, mode='r'):
+    def open(self, mode='r', for_datatap=None):
         self.writing_files = set()
         self.zipfile = zipfile.ZipFile(self.filename, mode)
         if 'w' in mode:
             self.object_stream_file = self.get_write_file_object('manifest.json')
+            if for_datatap:
+                self.zipfile.writestr('originator.txt', for_datatap.get_ident())
         else:
             self.object_stream_file = self.zipfile.open('manifest.json', mode)
         self.object_stream = JSONStreamDataTap(self.object_stream_file)
+    
+    def detect_originating_datatap(self):
+        return lookup_datatap(self.zipfile.open('originator.txt').read())
     
     class OutFile(StringIO):
         def __init__(self, datatap, path):

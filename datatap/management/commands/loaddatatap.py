@@ -4,8 +4,8 @@ from datatap.loading import lookup_datatap
 
 
 class Command(BaseCommand):
-    args = '<source> <source vargs> -- <destination> <destination vargs>'
-    help = 'Use datataps to export data'
+    args = '<source> <source vargs>'
+    help = 'Use datataps to import data'
     
     
     def get_datatap_class(self, name):
@@ -29,22 +29,12 @@ class Command(BaseCommand):
         standard_args = list()
         source = None
         source_args = list()
-        destination = None
-        destination_args = list()
         
         while args and args[0].startswith('-'):
             standard_args.append(args.pop(0))
         
         source = args.pop(0)
-        
-        try:
-            position = args.index('--')
-        except ValueError:
-            source_args = args
-        else:
-            source_args = args[:position]
-            destination = args[position+1]
-            destination_args = args[position+2:]
+        source_args = args
         
         if not source:
             return self.print_help(argv[0], argv[1])
@@ -54,24 +44,19 @@ class Command(BaseCommand):
         
         source_tap = self.load_datatap(source, source_args)
         
-        if not destination:
-            destination = 'JSONStream'
-            destination_args = []
-        
-        destination_tap = self.load_datatap(destination, destination_args)
-        
         options.__dict__['source_tap'] = source_tap
-        options.__dict__['destination_tap'] = destination_tap
         
         self.execute(*args, **options.__dict__)
     
     def handle(self, *args, **options):
         source_tap = options.pop('source_tap')
         source_tap.open('r')
-        destination_tap = options.pop('destination_tap')
-        destination_tap.open('w', for_datatap=source_tap)
+        if 'destination_tap' in options:
+            destination_tap = options.pop('destination_tap')
+        else:
+            destination_tap = source_tap.detect_originating_datatap()()
         
+        destination_tap.open('w', for_datatap=source_tap)
         source_tap._store(destination_tap)
-        source_tap.close()
         destination_tap.close()
-
+        source_tap.close()
