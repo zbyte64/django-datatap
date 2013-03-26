@@ -38,8 +38,10 @@ class DataTapJSONEncoder(DjangoJSONEncoder):
             return list(obj)
         if isinstance(obj, File):
             #CONSIDER: is this document safe?
-            return {'__type__':'File', 
-                    'path':self.filetap.write_file(obj)} 
+            if self.filetap:
+                return {'__type__':'File', 
+                        'path':self.filetap.write_file(obj)} 
+            return obj.name
         if isinstance(obj, Promise):
             return force_text(obj)
         if isinstance(obj, ObjectIteratorAdaptor):

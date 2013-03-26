@@ -23,8 +23,44 @@ Put 'datatap' into your ``INSTALLED_APPS`` section of your settings file.
 Concept
 =======
 
-Events are emitted from hyperadmin resources when actions are completed. These events are listened to by Subcribers in eventsocket. These objects serialize the message and fowards it to a publisher. A publisher executes a scheduled message to a data source. The task may run the message through a transformation function before sending.
+Datataps are classes able to serialize and deserialize objects in their domain. A datatap maybe chained with another to provide serialization to a particular format or for objects to be read from a general data source like a zip file. Datataps also handle the serialization and deserialization of django File objects within the native objects allowing for assets to follow the application data.
 
-This would allow for new objects to be posted to a CRM via a webhook or a metric to elasticsearch. It may even goto a redis store to power a pub sub.
+Example usage:
 
-There should be an admin panel for chaining these objects and saving them in a db. Due to the dynamic nature of these objects something like django-configstore can handle the variable forms and serialization.
+    from datatap.dataps import JSONStreamDataTap, ModelDataTap, ResourceDataTap
+    
+    #with django models
+    outstream = JSONStreamDataTap(stream=sys.stdout)
+    outstream.open('w')
+    ModelDataTap.store(outstream, MyModel, User.objects.filter(is_active=True))
+    outstream.close()
+    
+    instream = JSONStreamDataTap(stream=open('fixture.json', 'r'))
+    ModelDataTap.load(instream)
+    
+    
+    #with hyperadmin resources
+    outstream = JSONStreamDataTap(stream=sys.stdout)
+    outstream.open('w')
+    ResourceDataTap.store(outstream, MyResource)
+    outstream.close()
+    
+    instream = JSONStreamDataTap(stream=open('fixture.json', 'r'))
+    ResourceDataTap.load(instream)
+    
+    #or with substitutions
+    instream = JSONStreamDataTap(stream=open('fixture.json', 'r'))
+    ResourceDataTap.load(instream, mapping={'myresource_resource':'target_resource'})
+
+Further development will include a management command to allow dumping and loading to particular data stores (zip file, json file, S3, etc). It is likely the serialization format will change to include the originating data tap so that the resulting data store can be automatically detected.
+
+Possible command line usage:    
+
+    manage.py dumpdatatap ModelDataTap app1 app2 app3.model ZipFileDataTap myfile.zip
+    
+    manage.py loaddatatap ZipFileDataTap myfile.zip
+    
+    manage.py dumpdatatap DocKitCMSDataTap --app=customapp1 --app=customapp2 --collection=blog --publicresource=myblog > objects.json
+
+
+
