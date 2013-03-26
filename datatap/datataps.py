@@ -27,6 +27,7 @@ Example usage:
 
 import logging
 import zipfile
+from StringIO import StringIO
 
 from django.db import models
 from django.utils.encoding import smart_unicode, is_protected_type
@@ -205,12 +206,37 @@ class ZipFileDataTap(DataTap):
         super(ZipFileDataTap, self).__init__(**kwargs)
     
     def open(self, mode='r'):
+        self.writing_files = set()
         self.zipfile = zipfile.ZipFile(self.filename, mode)
-        self.object_stream_file = self.zipfile.open('manifest.json', mode)
+        if 'w' in mode:
+            self.object_stream_file = self.get_write_file_object('manifest.json')
+        else:
+            self.object_stream_file = self.zipfile.open('manifest.json', mode)
         self.object_stream = JSONStreamDataTap(self.object_stream_file)
+    
+    class OutFile(StringIO):
+        def __init__(self, datatap, path):
+            self.datatap = datatap
+            self.path = path
+            StringIO.__init__(self)
+        
+        @property
+        def zipfile(self):
+            return self.datatap.zipfile
+        
+        def close(self):
+            self.zipfile.writestr(self.path, self.getvalue())
+            self.datatap.writing_files.remove(self)
+    
+    def get_write_file_object(self, path):
+        outfile = self.OutFile(self, path)
+        self.writing_files.add(outfile)
+        return outfile
     
     def close(self):
         self.object_stream.close()
+        for outfile in list(self.writing_files):
+            outfile.close()
         self.zipfile.close()
     
     def write_stream(self, instream):
@@ -220,12 +246,13 @@ class ZipFileDataTap(DataTap):
         self.object_stream.write_item(item, filetap=self.get_filetap())
     
     def write_file(self, file_obj, path):
-        #TODO review this
-        self.zipfile.open(path, 'wb').write(file_obj.read())
+        #TODO write in chunks
+        #TODO write in a directory
+        self.get_write_file_object(path).write(file_obj.read())
         return path
     
     def read_file(self, path):
-        return self.zipfile.open(path, 'rb')
+        return self.zipfile.open(path, 'r')
     
     def get_raw_item_stream(self, filetap):
         return self.object_stream.get_item_stream(filetap=filetap)
