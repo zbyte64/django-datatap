@@ -25,7 +25,7 @@ Concept
 
 Datataps are classes able to serialize and deserialize objects in their domain. A datatap maybe chained with another to provide serialization to a particular format or for objects to be read from a general data source like a zip file. Datataps also handle the serialization and deserialization of django File objects within the native objects allowing for assets to follow the application data.
 
-Example code usage:
+Example code usage::
 
     from datatap.dataps import JSONStreamDataTap, ModelDataTap, ResourceDataTap
     
@@ -54,7 +54,7 @@ Example code usage:
 
 Datatap includes a management command to allow dumping and loading to particular data stores (zip file, json file, S3, etc). Some datataps include the originating data tap so that the resulting data store can be automatically detected.
 
-Example command line usage:
+Example command line usage::
 
     manage.py dumpdatatap Model app1 app2 app3.model -- ZipFile --file=myfile.zip
     manage.py dumpdatatap <source> <source vargs> -- <destination> <destination vargs>
