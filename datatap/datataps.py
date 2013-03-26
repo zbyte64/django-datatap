@@ -25,14 +25,17 @@ Example usage:
     ResourceDataTap.load(instream, mapping={'myresource_resource':'target_resource'})
 '''
 
+import sys
 import logging
 import zipfile
 from StringIO import StringIO
+from optparse import make_option, OptionParser
 
 from django.db import models
 from django.utils.encoding import smart_unicode, is_protected_type
 
 from datatap.encoders import ObjectIteratorAdaptor, DataTapJSONEncoder, DataTapJSONDecoder
+from datatap.loading import register_datatap
 
 
 class DataTap(object):
@@ -155,6 +158,17 @@ class DataTap(object):
         Returns an iterable of items belonging to this data tap
         '''
         return []
+    
+    command_option_list = []
+    
+    @classmethod
+    def load_from_command_line(cls, arglist):
+        '''
+        Retuns an instantiated DataTap with the provided arguments from commandline
+        '''
+        parser = OptionParser(option_list=cls.command_option_list)
+        options, args = parser.parse_args(arglist)
+        return cls(*args, **options.__dict__)
 
 class MemoryDataTap(DataTap):
     '''
@@ -196,11 +210,29 @@ class JSONStreamDataTap(DataTap):
         encoder = DataTapJSONEncoder(filetap=filetap)
         for chunk in encoder.iterencode(item):
             self.stream.write(chunk)
+    
+    @classmethod
+    def load_from_command_line(cls, arglist):
+        parser = OptionParser(option_list=cls.command_option_list)
+        options, args = parser.parse_args(arglist)
+        options.__dict__['stream'] = sys.stdout
+        return cls(*args, **options.__dict__)
+
+register_datatap('JSONStream', JSONStreamDataTap)
+
 
 class ZipFileDataTap(DataTap):
     '''
     Reads and writes objects from a zipfile
     '''
+    command_option_list = [
+        make_option('--file',
+            action='store',
+            type='string',
+            dest='filename',
+        )
+    ]
+    
     def __init__(self, filename, **kwargs):
         self.filename = filename
         super(ZipFileDataTap, self).__init__(**kwargs)
@@ -256,6 +288,9 @@ class ZipFileDataTap(DataTap):
     
     def get_raw_item_stream(self, filetap):
         return self.object_stream.get_item_stream(filetap=filetap)
+
+register_datatap('ZipFile', ZipFileDataTap)
+
 
 class ModelIteratorAdaptor(ObjectIteratorAdaptor):
     def transform(self, obj):
@@ -320,6 +355,22 @@ class ModelDataTap(DataTap):
         if Model is None:
             raise ValueError(u"Invalid model identifier: '%s'" % model_identifier)
         return Model
+    
+    @classmethod
+    def load_from_command_line(cls, arglist):
+        parser = OptionParser(option_list=cls.command_option_list)
+        options, args = parser.parse_args(arglist)
+        model_sources = list()
+        for arg in args: #list of apps and model names
+            if '.' in arg:
+                model_sources.append(models.get_model(*arg.split(".", 1)))
+            else:
+                #get models form appname
+                model_sources.extend(models.get_models(models.get_app(arg)))
+        return cls(*model_sources, **options.__dict__)
+
+register_datatap('Model', ModelDataTap)
+
 
 class ResourceIteratorAdaptor(ObjectIteratorAdaptor):
     def prepare_field_value(self, val):

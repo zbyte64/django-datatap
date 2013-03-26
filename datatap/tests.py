@@ -9,6 +9,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth.models import Group
 
 from datatap.datataps import MemoryDataTap, JSONStreamDataTap, ZipFileDataTap, ModelDataTap
+from datatap.management.commands import dumpdatatap
 
 
 class MemoryDataTapTestCase(unittest.TestCase):
@@ -163,3 +164,14 @@ class ZipFileDataTapTestCase(unittest.TestCase):
         self.assertTrue(isinstance(result[0], Group))
         self.assertEqual(result[0].name, 'testgroup')
 
+class ModelToZipCommandIntregrationTestCase(unittest.TestCase):
+    def test_store(self):
+        filename = mkstemp('zip', 'datataptest')[1]
+        cmd = dumpdatatap.Command()
+        argv = ['manage.py', 'dumpdatatap', 'Model', 'contenttypes', '--', 'ZipFile', '--file', filename]
+        cmd.run_from_argv(argv)
+        
+        archive = zipfile.ZipFile(filename)
+        self.assertTrue('manifest.json' in archive.namelist())
+        manifest = json.load(archive.open('manifest.json', 'r'))
+        self.assertEqual(len(manifest), ContentType.objects.all().count())

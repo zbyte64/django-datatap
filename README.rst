@@ -56,11 +56,11 @@ Further development will include a management command to allow dumping and loadi
 
 Possible command line usage:    
 
-    manage.py dumpdatatap ModelDataTap app1 app2 app3.model ZipFileDataTap myfile.zip
+    manage.py dumpdatatap Model app1 app2 app3.model -- ZipFile --file=myfile.zip
+    manage.py dumpdatatap <source> <source vargs> -- <destination> <destination vargs>
     
-    manage.py loaddatatap ZipFileDataTap myfile.zip
+    manage.py loaddatatap ZipFile myfile.zip
+    manage.py loaddatatap <source> <source vargs>
     
-    manage.py dumpdatatap DocKitCMSDataTap --app=customapp1 --app=customapp2 --collection=blog --publicresource=myblog > objects.json
-
-
-
+    manage.py dumpdatatap DocKitCMS --app=customapp1 --app=customapp2 --collection=blog --publicresource=myblog > objects.json
+    manage.py dumpdatatap <source> <source vargs>
