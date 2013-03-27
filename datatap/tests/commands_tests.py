@@ -6,14 +6,14 @@ from django.utils import unittest
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth.models import Group
 
-from datatap.management.commands import dumpdatatap, loaddatatap
+from datatap.management.commands import datatap
 
 
 class ModelToZipCommandIntregrationTestCase(unittest.TestCase):
     def test_dumpdatatap(self):
         filename = mkstemp('zip', 'datataptest')[1]
-        cmd = dumpdatatap.Command()
-        argv = ['manage.py', 'dumpdatatap', 'Model', 'contenttypes', '--', 'ZipFile', '--file', filename]
+        cmd = datatap.Command()
+        argv = ['manage.py', 'datatap', 'Model', 'contenttypes', '--', 'ZipFile', '--file', filename]
         cmd.run_from_argv(argv)
         
         archive = zipfile.ZipFile(filename)
@@ -36,8 +36,8 @@ class ModelToZipCommandIntregrationTestCase(unittest.TestCase):
         archive.writestr('originator.txt', 'Model')
         archive.close()
         
-        cmd = loaddatatap.Command()
-        argv = ['manage.py', 'loaddatatap', 'ZipFile', '--file', filename]
+        cmd = datatap.Command()
+        argv = ['manage.py', 'datatap', 'ZipFile', '--file', filename]
         cmd.run_from_argv(argv)
         
         result = Group.objects.all()

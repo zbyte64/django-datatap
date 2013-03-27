@@ -21,7 +21,7 @@ class MemoryDataTapTestCase(unittest.TestCase):
         ]
         tap.write_stream(in_stream)
         tap.close()
-        self.assertEqual(in_stream, tap.object_stream)
+        self.assertEqual(in_stream, list(tap.object_stream))
     
     def test_get_item_stream(self):
         in_stream = [

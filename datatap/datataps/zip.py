@@ -24,6 +24,8 @@ class ZipFileDataTap(DataTap):
         super(ZipFileDataTap, self).__init__(**kwargs)
     
     def open(self, mode='r', for_datatap=None):
+        if self.mode == mode:
+            return
         self.writing_files = set()
         self.zipfile = zipfile.ZipFile(self.filename, mode)
         if 'w' in mode:
@@ -33,6 +35,7 @@ class ZipFileDataTap(DataTap):
         else:
             self.object_stream_file = self.zipfile.open('manifest.json', mode)
         self.object_stream = JSONStreamDataTap(self.object_stream_file)
+        return super(ZipFileDataTap, self).open(mode, for_datatap)
     
     def detect_originating_datatap(self):
         return lookup_datatap(self.zipfile.open('originator.txt').read())
