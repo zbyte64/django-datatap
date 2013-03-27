@@ -6,6 +6,9 @@ from datatap.encoders import ObjectIteratorAdaptor
 
 
 class WriteStream(object):
+    '''
+    A helper class that allows for objects to be incrementally processed. If the stream is closed or it's itemstream is closed then the write operation is completed and the results are cached for consumption.
+    '''
     def __init__(self, datatap, itemstream):
         self.datatap = datatap
         self.itemstream = itemstream
