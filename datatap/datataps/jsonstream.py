@@ -15,10 +15,16 @@ class JSONStreamDataTap(DataTap):
         super(JSONStreamDataTap, self).__init__(**kwargs)
     
     def get_raw_item_stream(self, filetap=None):
+        '''
+        Returns json decoded objects from the stream
+        '''
         decoder = DataTapJSONDecoder(filetap=filetap)
         return decoder.decode(self.stream.read())
     
     def write_stream(self, instream, filetap=None):
+        '''
+        Writes JSON encoded objects from instream to the stream
+        '''
         encoder = DataTapJSONEncoder(filetap=filetap)
         for chunk in encoder.iterencode(instream):
             self.stream.write(chunk)

@@ -16,6 +16,21 @@ class DataTap(object):
         if self.mode is not None:
             self.close()
     
+    def open(self, mode='r', for_datatap=None):
+        '''
+        Open the DataTap for data operations.
+        
+        :param mode: r for read, w for write
+        :param for_datatap: The datatap we are opening for. If this is a read then attempt to check if it is compatible with the originating datap. If this is a write then store the datatap type.
+        '''
+        self.mode = mode
+    
+    def close(self):
+        '''
+        Closes the DataTap
+        '''
+        self.mode = None
+    
     @classmethod
     def store(cls, datatap, *args, **kwargs):
         '''
@@ -25,6 +40,7 @@ class DataTap(object):
         :param datatap: The datatap to write to
         '''
         source = cls(*args, **kwargs)
+        source.open(mode='r', for_datatap=datatap)
         return source.dump(datatap)
     
     def dump(self, datatap):
@@ -44,22 +60,24 @@ class DataTap(object):
         :param datatap: The datatap to load from
         '''
         destination = cls(*args, **kwargs)
-        return destination._load(datatap)
+        destination.open(mode='r', for_datatap=datatap)
+        response = destination.write(datatap)
+        return response
     
-    def _load(self, datatap):
+    def write(self, datatap):
         '''
         Writes objects from the passed in datatap to this datatap
         
         :param datatap: The datatap to read from
         '''
-        self.open(mode='r', for_datatap=datatap)
         result = self.write_stream(datatap.get_item_stream(filetap=self.get_filetap()))
-        self.close()
         return result
     
     def get_item_stream(self, filetap=None):
         '''
         Returns an iterable of standardized objects belonging to this data tap
+        
+        :param filetap: The datatap to use to store files
         '''
         object_iterator = self.get_raw_item_stream(filetap)
         return self.get_object_iterator_adaptor(object_iterator=object_iterator)
@@ -70,27 +88,17 @@ class DataTap(object):
         '''
         return self
     
-    #begin non-public methods that should be implemented
-    
-    def open(self, mode='r', for_datatap=None):
-        '''
-        Open the DataTap for data operations.
-        
-        :param mode: r for read, w for write
-        :param for_datatap: The datatap we are opening for. If this is a read then attempt to check if it is compatible with the originating datap. If this is a write then store the datatap type.
-        '''
-        self.mode = mode
-    
     def detect_originating_datatap(self):
         '''
-        If this is a datatap we are reading from then return the datatap that was used for populating this datatap
+        Returns the originating datatap class or None if it doesn't know.
+        If this is stored datatap open for reading then it returns the datatap class that was used for populating this datatap
         '''
-        pass
-
-    def close(self):
-        self.mode = None
+        return None
     
     def get_logger(self):
+        '''
+        Returns a logger for logging events
+        '''
         return logging.getLogger(__name__)
     
     def get_object_iterator_class(self):
@@ -104,7 +112,6 @@ class DataTap(object):
         Returns an iterable that standardizes the incomming object iterable
         
         :param object_iterator: An iterable containing the native objects
-        :param filetap_promise: A function returning the promise of a serialized file
         '''
         klass = self.get_object_iterator_class()
         kwargs = self.get_object_iterator_adaptor_kwargs(object_iterator=object_iterator)
@@ -113,6 +120,7 @@ class DataTap(object):
     def write_stream(self, instream):
         '''
         Processes an incomming data tap into this data tap
+        
         :param instream: an iterable of standardized items
         '''
         collector = list()
@@ -123,6 +131,7 @@ class DataTap(object):
     def write_item(self, item):
         '''
         Stores an item
+        
         :param item: a json serializable dictionary
         '''
         for path, file_obj in item.files.iteritems():

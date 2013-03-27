@@ -37,6 +37,9 @@ class ModelDataTap(DataTap):
         return ModelIteratorAdaptor
     
     def get_raw_item_stream(self, filetap=None):
+        '''
+        Yields objects from the model sources
+        '''
         for source in self.model_sources:
             try:
                 is_model = issubclass(source, models.Model)
@@ -55,6 +58,9 @@ class ModelDataTap(DataTap):
     #    
     
     def write_item(self, item):
+        '''
+        Creates and returns a model instance
+        '''
         model = self.get_model(item['model'])
         params = item['fields']
         params['pk'] = item['pk']
