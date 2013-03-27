@@ -56,14 +56,18 @@ class ModelDataTap(DataTap):
         for source in self.model_sources:
             try:
                 is_model = issubclass(source, models.Model)
+                is_instance = False
             except TypeError:
                 is_model = False
+                is_instance = isinstance(source, models.Model)
             
             if is_model:
-                queryset = source.objects.all()
+                queryset = source.objects.all().iterator()
+            elif is_instance:
+                queryset = [source]
             else:
-                queryset = source
-            for item in queryset.iterator():
+                queryset = source.iterator()
+            for item in queryset:
                 yield item
     
     def write_stream(self, instream):
