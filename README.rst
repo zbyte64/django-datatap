@@ -53,18 +53,19 @@ Example code usage::
 
 Datatap includes a management command to allow dumping and loading to particular data stores (zip file, json file, S3, etc). Some datataps include the originating data tap so that the resulting data store can be automatically detected.
 
+Format::
+
+    manage.py datatap <source> <source vargs> -- <destination> <destination vargs>
+    manage.py datatap <source> <source vargs>
+
 Example command line usage::
 
-    manage.py dumpdatatap Model app1 app2 app3.model -- ZipFile --file=myfile.zip
-    manage.py dumpdatatap <source> <source vargs> -- <destination> <destination vargs>
+    manage.py datatap Model app1 app2 app3.model -- ZipFile --file=myfile.zip
     
     #3rd party can register their own data taps
-    manage.py dumpdatatap DocKitCMS --app=customapp1 --app=customapp2 --collection=blog --publicresource=myblog > objects.json
-    manage.py dumpdatatap <source> <source vargs>
+    manage.py datatap DocKitCMS --app=customapp1 --app=customapp2 --collection=blog --publicresource=myblog > objects.json
     
-    manage.py loaddatatap ZipFile --file=myfile.zip
-    manage.py loaddatatap <source> <source vargs>
-    
-    #which is the same as
-    manage.py dumpdatatap ZipFile --file=myfile.zip -- Model
+    #destination data tap is autodetected
+    manage.py datatap ZipFile --file=myfile.zip
+
 
