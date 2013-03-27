@@ -1,28 +1,30 @@
 '''
 Example usage::
 
+    from datatap.dataps import JSONStreamDataTap, ModelDataTap, ZipFileDataTap
+    
     #with django models
     outstream = JSONStreamDataTap(stream=sys.stdout)
-    outstream.open('w')
-    ModelDataTap.store(outstream, MyModel, User.objects.filter(is_active=True))
-    outstream.close()
+    outstream.open('w'. for_datatap=ModelDataTap)
+    source = ModelDataTap(MyModel, User.objects.filter(is_active=True))
+    source.dump(outstream)
     
     instream = JSONStreamDataTap(stream=open('fixture.json', 'r'))
     ModelDataTap.load(instream)
     
+    #give me all active users to stdout
+    ModelDataTap.store(JSONStreamDataTap(stream=sys.stdout), User.objects.filter(is_active=True))
     
-    #with hyperadmin resources
-    outstream = JSONStreamDataTap(stream=sys.stdout)
-    outstream.open('w')
-    ResourceDataTap.store(outstream, MyResource)
-    outstream.close()
+    #write Blog and BlogImages to a zipfile
+    archive = ZipFileDataTap(filename='myblog.zip')
+    archive.open('w', for_datatap=ModelDataTap)
+    #or do it in one line: archive = ZipFileDataTap(filename='myblog.zip', mode='w', for_datatap=ModelDataTap)
+    ModelDataTap.store(archive, Blog, BlogImages)
+    archive.close()
     
-    instream = JSONStreamDataTap(stream=open('fixture.json', 'r'))
-    ResourceDataTap.load(instream)
-    
-    #or with substitutions
-    instream = JSONStreamDataTap(stream=open('fixture.json', 'r'))
-    ResourceDataTap.load(instream, mapping={'myresource_resource':'target_resource'})
+    archive = ZipFileDataTap(filename='myblog.zip', mode='r')
+    ModedDataTap.load(archive)
+
 '''
 from datatap.datataps.base import DataTap
 from datatap.datataps.memory import MemoryDataTap

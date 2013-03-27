@@ -58,6 +58,6 @@ class Command(BaseCommand):
             destination_tap = source_tap.detect_originating_datatap()()
         
         destination_tap.open('w', for_datatap=source_tap)
-        source_tap._store(destination_tap)
+        source_tap.dump(destination_tap)
         destination_tap.close()
         source_tap.close()

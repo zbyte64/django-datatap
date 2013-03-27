@@ -6,6 +6,16 @@ from datatap.encoders import ObjectIteratorAdaptor
 
 
 class DataTap(object):
+    def __init__(self, mode=None, for_datatap=None):
+        self.mode = mode
+        if mode:
+            self.open(mode, for_datatap)
+        super(DataTap, self).__init__()
+    
+    def __del__(self):
+        if self.mode is not None:
+            self.close()
+    
     @classmethod
     def store(cls, datatap, *args, **kwargs):
         '''
@@ -15,9 +25,9 @@ class DataTap(object):
         :param datatap: The datatap to write to
         '''
         source = cls(*args, **kwargs)
-        return source._store(datatap)
+        return source.dump(datatap)
     
-    def _store(self, datatap):
+    def dump(self, datatap):
         '''
         Writes objects form this datatap to the datatap passed in
         

@@ -27,30 +27,29 @@ Datataps are classes able to serialize and deserialize objects in their domain. 
 
 Example code usage::
 
-    from datatap.dataps import JSONStreamDataTap, ModelDataTap, ResourceDataTap
+    from datatap.dataps import JSONStreamDataTap, ModelDataTap, ZipFileDataTap
     
     #with django models
     outstream = JSONStreamDataTap(stream=sys.stdout)
-    outstream.open('w')
-    ModelDataTap.store(outstream, MyModel, User.objects.filter(is_active=True))
-    outstream.close()
+    outstream.open('w'. for_datatap=ModelDataTap)
+    source = ModelDataTap(MyModel, User.objects.filter(is_active=True))
+    source.dump(outstream)
     
     instream = JSONStreamDataTap(stream=open('fixture.json', 'r'))
     ModelDataTap.load(instream)
     
+    #give me all active users to stdout
+    ModelDataTap.store(JSONStreamDataTap(stream=sys.stdout), User.objects.filter(is_active=True))
     
-    #with hyperadmin resources
-    outstream = JSONStreamDataTap(stream=sys.stdout)
-    outstream.open('w')
-    ResourceDataTap.store(outstream, MyResource)
-    outstream.close()
+    #write Blog and BlogImages to a zipfile
+    archive = ZipFileDataTap(filename='myblog.zip')
+    archive.open('w', for_datatap=ModelDataTap)
+    #or do it in one line: archive = ZipFileDataTap(filename='myblog.zip', mode='w', for_datatap=ModelDataTap)
+    ModelDataTap.store(archive, Blog, BlogImages)
+    archive.close()
     
-    instream = JSONStreamDataTap(stream=open('fixture.json', 'r'))
-    ResourceDataTap.load(instream)
-    
-    #or with substitutions
-    instream = JSONStreamDataTap(stream=open('fixture.json', 'r'))
-    ResourceDataTap.load(instream, mapping={'myresource_resource':'target_resource'})
+    archive = ZipFileDataTap(filename='myblog.zip', mode='r')
+    ModedDataTap.load(archive)
 
 Datatap includes a management command to allow dumping and loading to particular data stores (zip file, json file, S3, etc). Some datataps include the originating data tap so that the resulting data store can be automatically detected.
 
@@ -59,6 +58,7 @@ Example command line usage::
     manage.py dumpdatatap Model app1 app2 app3.model -- ZipFile --file=myfile.zip
     manage.py dumpdatatap <source> <source vargs> -- <destination> <destination vargs>
     
+    #3rd party can register their own data taps
     manage.py dumpdatatap DocKitCMS --app=customapp1 --app=customapp2 --collection=blog --publicresource=myblog > objects.json
     manage.py dumpdatatap <source> <source vargs>
     
@@ -67,3 +67,4 @@ Example command line usage::
     
     #which is the same as
     manage.py dumpdatatap ZipFile --file=myfile.zip -- Model
+
