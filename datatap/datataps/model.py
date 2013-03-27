@@ -66,7 +66,10 @@ class ModelDataTap(DataTap):
             elif is_instance:
                 queryset = [source]
             else:
-                queryset = source.iterator()
+                if hasattr(source, 'iterator'):
+                    queryset = source.iterator()
+                else:
+                    queryset = source
             for item in queryset:
                 yield item
     
