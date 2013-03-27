@@ -75,7 +75,7 @@ class DataTap(object):
         
         :param datatap: The datatap to read from
         '''
-        self.open(mode='r')
+        self.open(mode='r', for_datatap=datatap)
         result = self.write_stream(datatap.get_item_stream(filetap=self.get_filetap()))
         self.close()
         return result
