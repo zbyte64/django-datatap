@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand, CommandError, handle_default_options
 
-from datatap.loading import lookup_datatap
+from datatap.loading import lookup_datatap, autodiscover
 
 
 class Command(BaseCommand):
@@ -21,6 +21,7 @@ class Command(BaseCommand):
         and Django settings), then run this command.
 
         """
+        autodiscover()
         parser = self.create_parser(argv[0], argv[1])
         
         #the first argument without a "-" is the start of source
