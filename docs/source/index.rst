@@ -14,6 +14,7 @@ Table of Contents
 
    manual/installation
    manual/introduction
+   manual/commands
    manual/api/index
    manual/contributing
    release_notes
