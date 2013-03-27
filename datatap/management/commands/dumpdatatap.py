@@ -4,7 +4,7 @@ from datatap.loading import lookup_datatap, autodiscover
 
 
 class Command(BaseCommand):
-    args = '<source> <source vargs> -- <destination> <destination vargs>'
+    args = '<source> <source vargs> [-- <destination> <destination vargs>]'
     help = 'Use datataps to export data'
     
     
@@ -56,7 +56,11 @@ class Command(BaseCommand):
         source_tap = self.load_datatap(source, source_args)
         
         if not destination:
-            destination = 'JSONStream'
+            DestinationTap = source_tap.detect_originating_datatap()
+            if DestinationTap is not None:
+                destination = DestinationTap.get_ident()
+            else:
+                destination = 'JSONStream'
             destination_args = []
         
         destination_tap = self.load_datatap(destination, destination_args)
@@ -68,11 +72,10 @@ class Command(BaseCommand):
     
     def handle(self, *args, **options):
         source_tap = options.pop('source_tap')
-        source_tap.open('r')
         destination_tap = options.pop('destination_tap')
+        source_tap.open('r', for_datatap=destination_tap)
         destination_tap.open('w', for_datatap=source_tap)
         
         source_tap._store(destination_tap)
         source_tap.close()
         destination_tap.close()
-
