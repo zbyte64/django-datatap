@@ -17,12 +17,14 @@ def get_version(version=None, include_sub=True):
 
     sub = ''
     if version[3] == 'alpha' and version[4] == 0:
+        pass
+        '''
         # At the toplevel, this would cause an import loop.
         from django.utils.version import get_svn_revision
         svn_revision = get_svn_revision()[4:]
         if svn_revision != 'unknown':
             sub = '.dev%s' % svn_revision
-
+        '''
     elif version[3] != 'final':
         mapping = {'alpha': 'a', 'beta': 'b', 'rc': 'c'}
         sub = mapping[version[3]] + str(version[4])
