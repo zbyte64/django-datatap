@@ -51,8 +51,9 @@ class ZipFileDataTap(DataTap):
             return self.datatap.zipfile
         
         def close(self):
-            self.zipfile.writestr(self.path, self.getvalue())
-            self.datatap.writing_files.remove(self)
+            if self in self.datatap.writing_files:
+                self.zipfile.writestr(self.path, self.getvalue())
+                self.datatap.writing_files.remove(self)
     
     def get_write_file_object(self, path):
         outfile = self.OutFile(self, path)

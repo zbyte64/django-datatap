@@ -39,9 +39,10 @@ class ZipFileDataTapTestCase(unittest.TestCase):
         
         instream = ZipFileDataTap(filename=filename)
         instream.open('r', for_datatap=ModelDataTap)
-        result = ModelDataTap.load(instream)
+        result = list(ModelDataTap.load(instream))
         instream.close()
         
+        self.assertEqual(Group.objects.all().count(), 1)
         self.assertEqual(len(result), 1)
         self.assertTrue(isinstance(result[0], Group))
         self.assertEqual(result[0].name, 'testgroup')

@@ -1,12 +1,44 @@
 import logging
-
+from collections import deque
 from optparse import OptionParser
 
 from datatap.encoders import ObjectIteratorAdaptor
 
 
+class WriteStream(object):
+    def __init__(self, datatap, itemstream):
+        self.datatap = datatap
+        self.itemstream = itemstream
+        self.cached_results = deque()
+        self.counter = 0
+    
+    def __iter__(self):
+        for item in self.itemstream:
+            self.counter += 1
+            yield self.process_item(item)
+        while self.cached_results:
+            self.counter += 1
+            yield self.cached_results.popleft()
+    
+    def process_item(self, item):
+        return self.datatap.write_item(item)
+    
+    def close(self):
+        if self in self.datatap.open_writes:
+            for item in self.itemstream:
+                self.cached_results.append(self.process_item(item))
+            self.datatap.open_writes.remove(self)
+    
+    def __len__(self):
+        self.close()
+        return self.counter + len(self.cached_results)
+    
+    def __del__(self):
+        self.close()
+
 class DataTap(object):
     def __init__(self, mode=None, for_datatap=None):
+        self.open_writes = set()
         self.mode = mode
         if mode:
             self.open(mode, for_datatap)
@@ -30,6 +62,8 @@ class DataTap(object):
         Closes the DataTap
         '''
         self.mode = None
+        for write_stream in list(self.open_writes):
+            write_stream.close()
     
     @classmethod
     def store(cls, datatap, *args, **kwargs):
@@ -123,10 +157,9 @@ class DataTap(object):
         
         :param instream: an iterable of standardized items
         '''
-        collector = list()
-        for item in instream:
-            collector.append(self.write_item(item))
-        return collector
+        a_stream = WriteStream(self, instream)
+        self.open_writes.add(a_stream)
+        return a_stream
     
     def write_item(self, item):
         '''
@@ -134,9 +167,7 @@ class DataTap(object):
         
         :param item: a json serializable dictionary
         '''
-        for path, file_obj in item.files.iteritems():
-            self.write_file(file_obj, path)
-        return item.data
+        return item
     
     def write_file(self, file_obj, path):
         '''

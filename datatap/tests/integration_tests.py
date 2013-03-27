@@ -31,7 +31,7 @@ class ModelToJsonIntegrationTestCase(unittest.TestCase):
         iostream = StringIO(json.dumps([item]))
         instream = JSONStreamDataTap(stream=iostream)
         instream.open('r', for_datatap=ModelDataTap)
-        result = ModelDataTap.load(instream)
+        result = list(ModelDataTap.load(instream))
         instream.close()
         
         self.assertEqual(len(result), 1)

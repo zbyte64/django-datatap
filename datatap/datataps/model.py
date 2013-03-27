@@ -1,30 +1,43 @@
 from optparse import OptionParser
 
 from django.db import models
-from django.utils.encoding import smart_unicode
+from django.core.files import File
+from django.core.serializers.python import Serializer, Deserializer
+from django.utils.encoding import is_protected_type
 
 from datatap.encoders import ObjectIteratorAdaptor
 from datatap.loading import register_datatap
-from datatap.datataps.base import DataTap
+from datatap.datataps.base import DataTap, WriteStream
 
+
+class ModelWriteStream(WriteStream):
+    def __init__(self, datatap, itemstream):
+        super(ModelWriteStream, self).__init__(datatap, Deserializer(itemstream))
+    
+    def process_item(self, item):
+        #item is a deserialized object
+        item.save()
+        return item.object
+
+class FileAwareSerializer(Serializer):
+    def handle_field(self, obj, field):
+        value = field._get_val_from_obj(obj)
+        if isinstance(value, File) or is_protected_type(value):
+            self._current[field.name] = value
+        else:
+            self._current[field.name] = field.value_to_string(obj)
 
 class ModelIteratorAdaptor(ObjectIteratorAdaptor):
+    def __init__(self, use_natural_keys=True, **kwargs):
+        self.serializer = FileAwareSerializer()
+        self.use_natural_keys = use_natural_keys
+        super(ModelIteratorAdaptor, self).__init__(**kwargs)
+    
     def transform(self, obj):
-        fields = dict()
-        for field in obj._meta.fields:
-            value = field._get_val_from_obj(obj)
-            #TODO foreign keys and many to many fields
-            fields[field.name] = value
-            
-        return {
-            "model"  : smart_unicode(obj._meta),
-            "pk"     : smart_unicode(obj._get_pk_val(), strings_only=True),
-            "fields" : fields,
-        }
+        #TODO not thread safe
+        self.serializer.serialize([obj], use_natural_keys=self.use_natural_keys)
+        return self.serializer.objects.pop()
 
-#TODO m2m
-#TODO should we return deserialized object?
-#TODO natural keys
 class ModelDataTap(DataTap):
     '''
     Reads and writes from Django's ORM
@@ -53,18 +66,18 @@ class ModelDataTap(DataTap):
             for item in queryset.iterator():
                 yield item
     
-    #TODO store_stream => bulk create
-    #def write_stream(self, instream):
-    #    
+    def write_stream(self, instream):
+        a_stream = ModelWriteStream(self, instream)
+        self.open_writes.add(a_stream)
+        return a_stream
     
     def write_item(self, item):
         '''
         Creates and returns a model instance
         '''
-        model = self.get_model(item['model'])
-        params = item['fields']
-        params['pk'] = item['pk']
-        return model.objects.create(**params)
+        result = Deserializer([item]).next()
+        result.save()
+        return result.object
     
     def get_model(self, model_identifier):
         """
