@@ -25,9 +25,9 @@ class WriteStream(object):
     
     def close(self):
         if self in self.datatap.open_writes:
+            self.datatap.open_writes.remove(self)
             for item in self.itemstream:
                 self.cached_results.append(self.process_item(item))
-            self.datatap.open_writes.remove(self)
     
     def __len__(self):
         self.close()
@@ -37,8 +37,12 @@ class WriteStream(object):
         self.close()
 
 class DataTap(object):
+    write_stream_class = WriteStream
+    object_iterator_class = ObjectIteratorAdaptor
+    
     def __init__(self, mode=None, for_datatap=None):
         self.open_writes = set()
+        self.open_reads = set()
         self.mode = mode
         if mode:
             self.open(mode, for_datatap)
@@ -64,6 +68,8 @@ class DataTap(object):
         self.mode = None
         for write_stream in list(self.open_writes):
             write_stream.close()
+        for read_stream in list(self.open_reads):
+            read_stream.close()
     
     @classmethod
     def store(cls, datatap, *args, **kwargs):
@@ -114,7 +120,9 @@ class DataTap(object):
         :param filetap: The datatap to use to store files
         '''
         object_iterator = self.get_raw_item_stream(filetap)
-        return self.get_object_iterator_adaptor(object_iterator=object_iterator)
+        item_stream = self.get_object_iterator_adaptor(object_iterator=object_iterator)
+        self.open_reads.add(item_stream)
+        return item_stream
     
     def get_filetap(self):
         '''
@@ -135,10 +143,8 @@ class DataTap(object):
         '''
         return logging.getLogger(__name__)
     
-    def get_object_iterator_class(self):
-        return ObjectIteratorAdaptor
-    
     def get_object_iterator_adaptor_kwargs(self, **kwargs):
+        kwargs.setdefault('datatap', self)
         return kwargs
     
     def get_object_iterator_adaptor(self, object_iterator):
@@ -147,7 +153,7 @@ class DataTap(object):
         
         :param object_iterator: An iterable containing the native objects
         '''
-        klass = self.get_object_iterator_class()
+        klass = self.object_iterator_class
         kwargs = self.get_object_iterator_adaptor_kwargs(object_iterator=object_iterator)
         return klass(**kwargs)
     
@@ -157,8 +163,10 @@ class DataTap(object):
         
         :param instream: an iterable of standardized items
         '''
-        a_stream = WriteStream(self, instream)
+        a_stream = self.write_stream_class(self, instream)
         self.open_writes.add(a_stream)
+        if hasattr(instream, 'readers'):
+            instream.readers.add(a_stream)
         return a_stream
     
     def write_item(self, item):

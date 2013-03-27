@@ -42,12 +42,12 @@ class ModelDataTap(DataTap):
     '''
     Reads and writes from Django's ORM
     '''
+    write_stream_class = ModelWriteStream
+    object_iterator_class = ModelIteratorAdaptor
+    
     def __init__(self, *model_sources, **kwargs):
         self.model_sources = model_sources or []
         super(ModelDataTap, self).__init__(**kwargs)
-    
-    def get_object_iterator_class(self):
-        return ModelIteratorAdaptor
     
     def get_raw_item_stream(self, filetap=None):
         '''
@@ -72,11 +72,6 @@ class ModelDataTap(DataTap):
                     queryset = source
             for item in queryset:
                 yield item
-    
-    def write_stream(self, instream):
-        a_stream = ModelWriteStream(self, instream)
-        self.open_writes.add(a_stream)
-        return a_stream
     
     def write_item(self, item):
         '''
