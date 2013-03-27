@@ -79,18 +79,6 @@ class ModelDataTap(DataTap):
         result.save()
         return result.object
     
-    def get_model(self, model_identifier):
-        """
-        Helper to look up a model from an "app_label.module_name" string.
-        """
-        try:
-            Model = models.get_model(*model_identifier.split("."))
-        except TypeError:
-            Model = None
-        if Model is None:
-            raise ValueError(u"Invalid model identifier: '%s'" % model_identifier)
-        return Model
-    
     @classmethod
     def load_from_command_line(cls, arglist):
         parser = OptionParser(option_list=cls.command_option_list)
@@ -100,7 +88,7 @@ class ModelDataTap(DataTap):
             if '.' in arg:
                 model_sources.append(models.get_model(*arg.split(".", 1)))
             else:
-                #get models form appname
+                #get models from appname
                 model_sources.extend(models.get_models(models.get_app(arg)))
         return cls(*model_sources, **options.__dict__)
 
