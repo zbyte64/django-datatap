@@ -5,7 +5,7 @@ Example usage::
     
     #with django models
     outstream = JSONStreamDataTap(stream=sys.stdout)
-    outstream.open('w'. for_datatap=ModelDataTap)
+    outstream.open('w', for_datatap=ModelDataTap)
     source = ModelDataTap(MyModel, User.objects.filter(is_active=True))
     source.dump(outstream)
     
@@ -22,8 +22,9 @@ Example usage::
     ModelDataTap.store(archive, Blog, BlogImages)
     archive.close()
     
+    #perhaps on another server:
     archive = ZipFileDataTap(filename='myblog.zip', mode='r')
-    ModedDataTap.load(archive)
+    ModelDataTap.load(archive)
 
 '''
 from datatap.datataps.base import DataTap
