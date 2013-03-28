@@ -1,3 +1,7 @@
+.. image:: https://secure.travis-ci.org/zbyte64/django-datatap.png?branch=master
+   :target: http://travis-ci.org/zbyte64/django-datatap
+
+
 ============
 Introduction
 ============
