@@ -5,9 +5,15 @@ import json
 from django.utils import unittest
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth.models import Group
+from django.core.files.base import File, ContentFile as BaseContentFile
 
 from datatap.datataps import ZipFileDataTap, ModelDataTap
 
+
+class ContentFile(BaseContentFile): #for ease with Django 1.3
+    def __init__(self, content, name=None):
+        super(ContentFile, self).__init__(content)
+        self.name = name
 
 class ZipFileDataTapTestCase(unittest.TestCase):
     def test_store(self):
@@ -47,3 +53,62 @@ class ZipFileDataTapTestCase(unittest.TestCase):
         self.assertTrue(isinstance(result[0], Group))
         self.assertEqual(result[0].name, 'testgroup')
 
+class ZipFileDataTapAssetsTestCase(unittest.TestCase):
+    def test_write_item_with_a_file(self):
+        filename = mkstemp('zip', 'datataptest')[1]
+        tap = ZipFileDataTap(filename=filename)
+        tap.open('w')
+        
+        sample_file = ContentFile('Just some file, move along', 'readme.txt')
+        tap.write_item({
+            'test':'item',
+            'readme':sample_file,
+        })
+        tap.close()
+        
+        archive = zipfile.ZipFile(filename, 'r')
+        payload = archive.open('manifest.json').read()
+        self.assertEqual('{"test": "item", "readme": {"path": "readme.txt", "__type__": "File"}}', payload)
+    
+    def test_write_stream_with_files(self):
+        filename = mkstemp('zip', 'datataptest')[1]
+        tap = ZipFileDataTap(filename=filename)
+        tap.open('w')
+        
+        sample_file = ContentFile('Just some file, move along', 'readme.txt')
+        sample_file2 = ContentFile('Just some file, move along', 'readme2.txt')
+        in_stream = [
+            {'test1': 'item', 'readme': sample_file,},
+            {'test2': 'item2', 'readme': sample_file2,},
+        ]
+        tap.write_stream(in_stream)
+        tap.close()
+        
+        archive = zipfile.ZipFile(filename, 'r')
+        payload = archive.open('manifest.json').read()
+        self.assertEqual([{"test1": "item", "readme": {"path": "readme.txt", "__type__": "File"}}, {"test2": "item2", "readme": {"path": "readme2.txt", "__type__": "File"}}], json.loads(payload))
+    
+    def test_get_item_stream_with_files(self):
+        filename = mkstemp('zip', 'datataptest')[1]
+        
+        archive = zipfile.ZipFile(filename, 'w')
+        in_stream = [ #TODO need files
+            {'test1': 'item', 'readme': 
+                {'__type__':'File',
+                 'path':'assets/readme.txt',}
+            },
+            {'test2': 'item2', 'readme': 
+                {'__type__':'File',
+                 'path':'assets/readme2.txt',}
+            },
+        ]
+        archive.writestr('manifest.json', json.dumps(in_stream))
+        archive.close()
+        
+        tap = ZipFileDataTap(filename=filename)
+        tap.open('r')
+        items = list(tap.get_item_stream())
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0], {'test1': 'item', 'readme':'assets/readme.txt',})
+        self.assertEqual(items[1], {'test2': 'item2', 'readme':'assets/readme2.txt',})
+        tap.close()

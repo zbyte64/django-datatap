@@ -51,8 +51,9 @@ class DataTapJSONEncoder(DjangoJSONEncoder):
         if isinstance(obj, File):
             #CONSIDER: is this document safe?
             if self.filetap:
+                desired_path = getattr(obj, 'path', None) or getattr(obj, 'name')
                 return {'__type__':'File', 
-                        'path':self.filetap.write_file(obj)} 
+                        'path':self.filetap.write_file(obj, desired_path)} 
             return obj.name
         if isinstance(obj, Promise):
             return force_text(obj)
@@ -69,6 +70,8 @@ class DataTapJSONDecoder(json.JSONDecoder):
 
     def decode_objects(self, dct):
         if '__type__' in dct and dct['__type__'] == 'File':
-            return self.filetap.read_file(dct['path'])
+            if self.filetap:
+                return self.filetap.read_file(dct['path'])
+            else:
+                return dct['path']
         return dct
-
