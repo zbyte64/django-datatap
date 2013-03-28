@@ -67,8 +67,10 @@ class ZipFileDataTapAssetsTestCase(unittest.TestCase):
         tap.close()
         
         archive = zipfile.ZipFile(filename, 'r')
-        payload = archive.open('manifest.json').read()
+        payload = archive.read('manifest.json')
         self.assertEqual('{"test": "item", "readme": {"path": "readme.txt", "__type__": "File"}}', payload)
+        readme = archive.read('readme.txt')
+        self.assertEqual(readme, 'Just some file, move along')
     
     def test_write_stream_with_files(self):
         filename = mkstemp('zip', 'datataptest')[1]
@@ -85,14 +87,14 @@ class ZipFileDataTapAssetsTestCase(unittest.TestCase):
         tap.close()
         
         archive = zipfile.ZipFile(filename, 'r')
-        payload = archive.open('manifest.json').read()
+        payload = archive.read('manifest.json')
         self.assertEqual([{"test1": "item", "readme": {"path": "readme.txt", "__type__": "File"}}, {"test2": "item2", "readme": {"path": "readme2.txt", "__type__": "File"}}], json.loads(payload))
     
     def test_get_item_stream_with_files(self):
         filename = mkstemp('zip', 'datataptest')[1]
         
         archive = zipfile.ZipFile(filename, 'w')
-        in_stream = [ #TODO need files
+        in_stream = [
             {'test1': 'item', 'readme': 
                 {'__type__':'File',
                  'path':'assets/readme.txt',}
@@ -105,6 +107,7 @@ class ZipFileDataTapAssetsTestCase(unittest.TestCase):
         archive.writestr('manifest.json', json.dumps(in_stream))
         archive.close()
         
+        #TODO pass in datatap to write file, get_item_stream(filetap=datatap.get_filetap())
         tap = ZipFileDataTap(filename=filename)
         tap.open('r')
         items = list(tap.get_item_stream())
