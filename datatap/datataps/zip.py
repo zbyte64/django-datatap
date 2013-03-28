@@ -54,7 +54,7 @@ class ZipFileDataTap(DataTap):
         return super(ZipFileDataTap, self).open(mode, for_datatap)
     
     def detect_originating_datatap(self):
-        return lookup_datatap(self.zipfile.open('originator.txt').read())
+        return lookup_datatap(self.zipfile.read('originator.txt'))
     
     class OutFile(StringIO):
         def __init__(self, datatap, path):
@@ -77,6 +77,7 @@ class ZipFileDataTap(DataTap):
         return outfile
     
     def close(self):
+        super(ZipFileDataTap, self).close()
         self.object_stream.close()
         for outfile in list(self.writing_files):
             outfile.close()
