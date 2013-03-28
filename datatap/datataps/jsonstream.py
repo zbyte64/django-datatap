@@ -38,7 +38,11 @@ class JSONStreamDataTap(DataTap):
     def load_from_command_line(cls, arglist):
         parser = OptionParser(option_list=cls.command_option_list)
         options, args = parser.parse_args(arglist)
-        options.__dict__['stream'] = sys.stdout
-        return cls(*args, **options.__dict__)
+        if len(args):
+            #perhaps this should be subclassed to be a JSONFile
+            options.__dict__['stream'] = open(args[0], 'r')
+        else:
+            options.__dict__['stream'] = sys.stdout
+        return cls(**options.__dict__)
 
 register_datatap('JSONStream', JSONStreamDataTap)
