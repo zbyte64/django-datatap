@@ -2,10 +2,26 @@ import zipfile
 from StringIO import StringIO
 from optparse import make_option
 
+from django.core.files.base import File
+
 from datatap.loading import register_datatap, lookup_datatap
 from datatap.datataps.base import DataTap
 from datatap.datataps.jsonstream import JSONStreamDataTap
 
+
+class DjangoZipExtFile(File):
+    def __init__(self, zipextfile, zipinfo):
+        self.file = zipextfile
+        self.zipinfo = zipinfo
+        self.mode = 'r'
+        self.name = zipinfo.filename
+        self._size = zipinfo.file_size
+    
+    def seek(self, position):
+        if position != 0:
+            #this will raise an unsupported operation
+            return self.file.seek(position)
+        #TODO if we have already done a read, reopen file
 
 class ZipFileDataTap(DataTap):
     '''
@@ -79,9 +95,13 @@ class ZipFileDataTap(DataTap):
         return path
     
     def read_file(self, path):
-        return self.zipfile.open(path, 'r')
+        zipextfile = self.zipfile.open(path, 'r')
+        zipinfo = self.zipfile.getinfo(path)
+        return DjangoZipExtFile(zipextfile, zipinfo)
     
-    def get_raw_item_stream(self, filetap):
+    def get_raw_item_stream(self, filetap=None):
+        if filetap is None:
+            filetap = self.get_filetap()
         return self.object_stream.get_item_stream(filetap=filetap)
 
 register_datatap('ZipFile', ZipFileDataTap)

@@ -17,6 +17,8 @@ class JSONStreamDataTap(DataTap):
     def get_raw_item_stream(self, filetap=None):
         '''
         Returns json decoded objects from the stream
+        
+        :param filetap: The filetap to load files from
         '''
         decoder = DataTapJSONDecoder(filetap=filetap)
         return decoder.decode(self.stream.read())
@@ -24,6 +26,8 @@ class JSONStreamDataTap(DataTap):
     def write_stream(self, instream, filetap=None):
         '''
         Writes JSON encoded objects from instream to the stream
+        
+        :param filetap: The filetap to write files to
         '''
         encoder = DataTapJSONEncoder(filetap=filetap)
         for chunk in encoder.iterencode(instream):

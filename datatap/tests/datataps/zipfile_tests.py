@@ -6,6 +6,7 @@ from django.utils import unittest
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth.models import Group
 from django.core.files.base import File, ContentFile as BaseContentFile
+from django.core.files.storage import DefaultStorage
 
 from datatap.datataps import ZipFileDataTap, ModelDataTap
 
@@ -105,13 +106,24 @@ class ZipFileDataTapAssetsTestCase(unittest.TestCase):
             },
         ]
         archive.writestr('manifest.json', json.dumps(in_stream))
+        archive.writestr('assets/readme.txt', 'readme1')
+        archive.writestr('assets/readme2.txt', 'readme2')
         archive.close()
         
-        #TODO pass in datatap to write file, get_item_stream(filetap=datatap.get_filetap())
         tap = ZipFileDataTap(filename=filename)
         tap.open('r')
         items = list(tap.get_item_stream())
         self.assertEqual(len(items), 2)
-        self.assertEqual(items[0], {'test1': 'item', 'readme':'assets/readme.txt',})
-        self.assertEqual(items[1], {'test2': 'item2', 'readme':'assets/readme2.txt',})
+        self.assertEqual(items[0]['test1'], 'item')
+        
+        self.assertTrue(isinstance(items[0]['readme'], File))
+        self.assertEqual(items[1]['test2'], 'item2')
+        self.assertTrue(isinstance(items[1]['readme'], File))
+        
+        #test that the file object passed back can be properly saved
+        file_to_save = items[0]['readme']
+        storage = DefaultStorage()
+        result = storage.save(file_to_save.name, file_to_save)
+        assert result
+        
         tap.close()
