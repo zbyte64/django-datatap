@@ -1,12 +1,11 @@
 import zipfile
-from StringIO import StringIO
 from optparse import make_option
 
 from django.core.files.base import File
 
 from datatap.loading import register_datatap, lookup_datatap
-from datatap.datataps.base import DataTap
-from datatap.datataps.jsonstream import JSONStreamDataTap
+from datatap.datataps.base import DataTap, FileTap
+from datatap.datataps.streams import StreamDataTap, JSONDataTap
 
 
 class DjangoZipExtFile(File):
@@ -23,87 +22,72 @@ class DjangoZipExtFile(File):
             return self.file.seek(position)
         #TODO if we have already done a read, reopen file
 
-class ZipFileDataTap(DataTap):
-    '''
-    Reads and writes objects from a zipfile
-    '''
-    command_option_list = [
-        make_option('--file',
-            action='store',
-            type='string',
-            dest='filename',
-        )
-    ]
-    
-    def __init__(self, filename, **kwargs):
-        self.filename = filename
-        super(ZipFileDataTap, self).__init__(**kwargs)
-    
-    def open(self, mode='r', for_datatap=None):
-        if self.mode == mode:
-            return
-        self.writing_files = set()
-        self.zipfile = zipfile.ZipFile(self.filename, mode)
-        if 'w' in mode:
-            self.object_stream_file = self.get_write_file_object('manifest.json')
-            if for_datatap:
-                self.zipfile.writestr('originator.txt', for_datatap.get_ident())
-        else:
-            self.object_stream_file = self.zipfile.open('manifest.json', mode)
-        self.object_stream = JSONStreamDataTap(self.object_stream_file)
-        return super(ZipFileDataTap, self).open(mode, for_datatap)
-    
-    def detect_originating_datatap(self):
-        return lookup_datatap(self.zipfile.read('originator.txt'))
-    
-    class OutFile(StringIO):
-        def __init__(self, datatap, path):
-            self.datatap = datatap
-            self.path = path
-            StringIO.__init__(self)
-        
-        @property
-        def zipfile(self):
-            return self.datatap.zipfile
-        
-        def close(self):
-            if self in self.datatap.writing_files:
-                self.zipfile.writestr(self.path, self.getvalue())
-                self.datatap.writing_files.remove(self)
-    
-    def get_write_file_object(self, path):
-        outfile = self.OutFile(self, path)
-        self.writing_files.add(outfile)
-        return outfile
-    
-    def close(self):
-        super(ZipFileDataTap, self).close()
-        self.object_stream.close()
-        for outfile in list(self.writing_files):
-            outfile.close()
-        self.zipfile.close()
-    
-    def write_stream(self, instream):
-        self.object_stream.write_stream(instream, filetap=self.get_filetap())
-    
-    def write_item(self, item):
-        self.object_stream.write_item(item, filetap=self.get_filetap())
+'''
+
+#CONSIDER: writing is currently done by ZipDT. FileDT needs to pass a file object to ZipDT for writing.
+#this is because not everything can be a pipe, hence ZipDT.open(fileobj, 'w')
+dt.write_file_stream(instream, fileobj) => take the stream, convert, and write to fileobj
+'''
+class ZipFileTap(FileTap):
+    def __init__(self, archive):
+        self.archive = archive
     
     def write_file(self, file_obj, path):
         #TODO write in chunks
         #TODO write in a directory
-        self.get_write_file_object(path).write(file_obj.read())
+        self.archive.writestr(path, file_obj.read())
         return path
     
     def read_file(self, path):
-        zipextfile = self.zipfile.open(path, 'r')
-        zipinfo = self.zipfile.getinfo(path)
+        zipextfile = self.archive.open(path, 'r')
+        zipinfo = self.archive.getinfo(path)
         return DjangoZipExtFile(zipextfile, zipinfo)
-    
-    def get_raw_item_stream(self, filetap=None):
-        if filetap is None:
-            filetap = self.get_filetap()
-        return self.object_stream.get_item_stream(filetap=filetap)
 
-register_datatap('ZipFile', ZipFileDataTap)
+
+class ZipFileDataTap(DataTap):
+    '''
+    Reads and writes objects from a zipfile
+    
+    FileDT(ZipDT(ModelDT)) => write to file
+    ModelDT(ZipDT(FileDT)) => read from file
+    '''
+    
+    def get_domain(self):
+        if self.instream.domain == 'bytes':
+            #file as our input, we emit text representation of primitives
+            return 'primitive'
+        if self.instream.domain == 'primitive':
+            #text representation of primitives as our input, we write to file
+            #CONSIDER: if our target is a file, then the parent constructor must pass it in!
+            #or we return a callable that takes the desired file object
+            return 'bytes'
+        assert False, 'Unrecognized instream domain: %s' % self.instream.domain
+    
+    def get_filetap(self, archive):
+        return ZipFileTap(archive)
+    
+    def save(self, fileobj):
+        archive = zipfile.ZipFile(fileobj, 'w')
+        filetap = self.get_filetap(archive)
+        encoded_stream = JSONDataTap(self.item_stream, filetap=filetap) #encode our objects into json
+        if isinstance(encoded_stream, basestring):
+            manifest = encoded_stream
+        else:
+            manifest = ''.join(encoded_stream)
+        archive.writestr('manifest.json', manifest)
+        archive.close()
+    
+    def get_primitive_stream(self, instream):
+        #instream is a bytes datatap but we want the file like object it reads
+        archive = zipfile.ZipFile(instream.item_stream, 'r')
+        filetap = self.get_filetap(archive)
+        return JSONDataTap(StreamDataTap(archive.open('manifest.json')), filetap=filetap)
+    
+    def get_bytes_stream(self, instream):
+        return instream
+    
+    #def detect_originating_datatap(self):
+    #    return lookup_datatap(self.zipfile.read('originator.txt'))
+
+register_datatap('Zip', ZipFileDataTap)
 

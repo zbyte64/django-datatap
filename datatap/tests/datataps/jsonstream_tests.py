@@ -1,36 +1,24 @@
-from StringIO import StringIO
+from io import BytesIO
 
 from django.utils import unittest
 
-from datatap.datataps import JSONStreamDataTap
+from datatap.datataps import StreamDataTap, JSONDataTap, MemoryDataTap
 
 
-class JSONStreamDataTapTestCase(unittest.TestCase):
-    def test_write_item(self):
-        out_stream = StringIO()
-        tap = JSONStreamDataTap(stream=out_stream)
-        tap.open('w')
-        tap.write_item({'test':'item'})
+class JSONDataTapTestCase(unittest.TestCase):
+    def test_encode(self):
+        out_stream = BytesIO()
+        source = MemoryDataTap([{'test':'item'}])
+        tap = JSONDataTap(instream=source)
+        tap.save(out_stream)
         tap.close()
-        self.assertEqual('{"test": "item"}', out_stream.getvalue())
+        self.assertEqual('[{"test": "item"}]', out_stream.getvalue())
     
-    def test_write_stream(self):
-        out_stream = StringIO()
-        tap = JSONStreamDataTap(stream=out_stream)
-        tap.open('w')
-        in_stream = [
-            {'test1': 'item'},
-            {'test2': 'item2'},
-        ]
-        tap.write_stream(in_stream)
-        tap.close()
-        self.assertEqual('[{"test1": "item"}, {"test2": "item2"}]', out_stream.getvalue())
-    
-    def test_get_item_stream(self):
-        in_stream = StringIO('[{"test1": "item"}, {"test2": "item2"}]')
-        tap = JSONStreamDataTap(stream=in_stream)
-        tap.open('r')
-        items = list(tap.get_item_stream())
+    def test_decode(self):
+        payload = BytesIO('[{"test1": "item"}, {"test2": "item2"}]')
+        source = StreamDataTap(payload)
+        tap = JSONDataTap(instream=source)
+        items = list(tap)
         self.assertEqual(len(items), 2)
         self.assertEqual(items[0], {'test1': 'item'})
         self.assertEqual(items[1], {'test2': 'item2'})

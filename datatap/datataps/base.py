@@ -1,196 +1,77 @@
 import logging
-from collections import deque, Iterable
+import sys
 from optparse import OptionParser
 
-from datatap.encoders import ObjectIteratorAdaptor
+try:
+    from django.utils.encoding import force_text
+except ImportError:
+    from django.utils.encoding import force_unicode as force_text
 
-
-class ReadStream(Iterable):
-    '''
-    Helper class to adapt an object stream to a standardized object representation stream.
-    Standardized objects are any python datastructures that are json serializable.
-    '''
-    def __init__(self, datatap, object_iterator):
-        '''
-        :param datatap: The datatap we are reading from
-        :param object_iterator: An iterable of native objects
-        '''
-        self.datatap = datatap
-        self.object_iterator = object_iterator
-        self.datatap.open_streams.add(self)
-        #self.readers = set()
-    
-    def transform(self, obj):
-        return obj
-    
-    def __iter__(self):
-        for obj in self.object_iterator:
-            yield self.transform(obj)
-    
-    def close(self):
-        if self in self.datatap.open_streams:
-            self.datatap.open_streams.remove(self)
-            #self.notify_readers_of_close()
-    
-    #def notify_readers_of_close(self):
-    #    for reader in self.readers:
-    #        reader.close()
-
-class WriteStream(object):
-    '''
-    A helper class that allows for objects to be incrementally processed. If the stream is closed or it's itemstream is closed then the write operation is completed and the results are cached for consumption.
-    '''
-    def __init__(self, datatap, itemstream):
-        self.datatap = datatap
-        self.itemstream = itemstream
-        self.cached_results = deque()
-        self.counter = 0
-        self.datatap.open_streams.add(self)
-    
-    def __iter__(self):
-        for item in self.itemstream:
-            self.counter += 1
-            yield self.process_item(item)
-        while self.cached_results:
-            self.counter += 1
-            yield self.cached_results.popleft()
-    
-    def process_item(self, item):
-        return self.datatap.write_item(item)
-    
-    def close(self):
-        if self in self.datatap.open_streams:
-            self.datatap.open_streams.remove(self)
-            for item in self.itemstream:
-                self.cached_results.append(self.process_item(item))
-    
-    def __len__(self):
-        self.close()
-        return self.counter + len(self.cached_results)
-    
-    def __del__(self):
-        self.close()
 
 class DataTap(object):
-    write_stream_class = WriteStream
-    read_stream_class = ReadStream
-    object_iterator_class = ObjectIteratorAdaptor
-    
-    def __init__(self, instream=None, mode='r'):
-        self.open_streams = set()
+    def __init__(self, instream=None, filetap=None):
         self.instream = instream
+        self.filetap = filetap
         super(DataTap, self).__init__()
-        self.open(mode)
+        self.item_stream = self.get_item_stream()
     
-    def __del__(self):
-        if self.mode is not None:
-            self.close()
+    def get_domain(self):
+        '''
+        Detect the target domain typically based on the instream. 
+        '''
+        return None
     
-    def open(self, mode='r'):
+    @classmethod
+    def open(cls, *args, **kwargs):
+        return cls(*args, **kwargs)
+    
+    @property
+    def domain(self):
         '''
-        Open the DataTap for data operations.
-        
-        :param mode: r for read, w for write
+        Returns the target domain this data tap will be exporting to
         '''
-        self.mode = mode
-        if self.mode == 'r':
-            self.itemstream = iter(self.get_item_stream(filetap=self))
+        return self.get_domain()
     
     def close(self):
         '''
         Closes the DataTap
         '''
-        self.mode = None
-        for stream in list(self.open_streams):
-            stream.close()
-    
-    """
-    @classmethod
-    def store(cls, datatap, *args, **kwargs):
-        '''
-        Writes objects to the datatap from this data tap class
-        Passes args and kwargs to instantiate the source data tap
-        
-        :param datatap: The datatap to write to
-        '''
-        source = cls(*args, **kwargs)
-        source.open(mode='r', for_datatap=datatap)
-        return source.dump(datatap)
-    
-    def dump(self, datatap):
-        '''
-        Writes objects form this datatap to the datatap passed in
-        
-        :param datatap: The datatap to write to
-        '''
-        return datatap.write_stream(self.get_item_stream(filetap=datatap.get_filetap()))
-    
-    @classmethod
-    def load(cls, datatap, *args, **kwargs):
-        '''
-        Loads objects from the datatap to this data tap class
-        Passes args and kwargs to instantiate the destination data tap
-        
-        :param datatap: The datatap to load from
-        '''
-        kwargs['instream'] = datatap
-        kwargs['mode'] = 'w'
-        destination = cls(*args, **kwargs)
-        #destination.open(mode='w', for_datatap=datatap)
-        response = destination.write(datatap)
-        return response
-    
-    def write(self, datatap):
-        '''
-        Writes objects from the passed in datatap to this datatap
-        
-        :param datatap: The datatap to read from
-        '''
-        result = self.write_stream(datatap.get_item_stream(filetap=self.get_filetap()))
-        return result
-    """
-    @property
-    def activestream(self):
-        if hasattr(self, 'itemstream'):
-            return self.itemstream
-        return self.instream
-    
-    def commit(self):
-        '''
-        If this is a datap that can store results then consume all objects from the instream and commit them.
-        '''
-        for chunk in self.instream:
-            self.write(chunk)
-    
-    def write(self, chunk):
-        return chunk
+        self.item_stream = None
     
     def read(self, size=None):
+        '''
+        Read a number of chunks read from this datatap.
+        '''
+        if not hasattr(self, 'read_iter'):
+            self.read_iter = iter(self)
+        result = list()
         if size is None:
-            for item in self.itemstream:
-                yield item
+            for item in self.read_iter:
+                result.append(item)
         else:
             for i in range(size):
-                yield self.itemstream.next()
-            
+                result.append(self.read_iter.next())
+        return result
+    
     def __iter__(self):
-        return self.activestream
+        return iter(self.item_stream)
     
-    def get_item_stream(self, filetap=None):
+    def get_item_stream(self):
         '''
-        Returns an iterable of standardized objects belonging to this data tap
-        
-        :param filetap: The datatap to use to store files
+        Returns an iterable based on the instream. By default return the 
+        iterable defined by the method `get_<domain>_stream` where 
+        domain is the result of `get_domain`.
         '''
-        object_iterator = self.get_raw_item_stream(filetap)
-        item_stream = self.get_object_iterator_adaptor(object_iterator=object_iterator)
-        return item_stream
+        return getattr(self, 'get_%s_stream' % self.domain)(self.instream)
     
-    def get_filetap(self):
+    def save(self, fileobj):
         '''
-        Returns a datatap to store the files
+        Write the stream to a file like object
         '''
-        return self
+        for item in self:
+            if not isinstance(item, basestring):
+                item = force_text(item)
+            fileobj.write(item)
     
     def detect_originating_datatap(self):
         '''
@@ -205,45 +86,52 @@ class DataTap(object):
         '''
         return logging.getLogger(__name__)
     
-    def get_object_iterator_adaptor_kwargs(self, **kwargs):
-        kwargs.setdefault('datatap', self)
-        return kwargs
+    command_option_list = []
     
-    def get_object_iterator_adaptor(self, object_iterator):
+    @classmethod
+    def load_from_command_line(cls, arglist, instream=None):
         '''
-        Returns an iterable that standardizes the incomming object iterable
+        Retuns an instantiated DataTap with the provided arguments from commandline
+        '''
+        parser = OptionParser(option_list=cls.command_option_list)
+        options, args = parser.parse_args(arglist)
+        kwargs = options.__dict__
+        if instream is not None:
+            kwargs['instream'] = instream
+        return cls(*args, **kwargs)
+    
+    @classmethod
+    def load_from_command_line_for_write(cls, arglist, instream=None):
+        '''
+        Retuns an instantiated DataTap with the provided arguments from commandline
+        '''
+        parser = OptionParser(option_list=cls.command_option_list)
+        options, args = parser.parse_args(arglist)
+        kwargs = options.__dict__
+        if instream is not None:
+            kwargs['instream'] = instream
         
-        :param object_iterator: An iterable containing the native objects
-        '''
-        klass = self.read_stream_class
-        kwargs = self.get_object_iterator_adaptor_kwargs(object_iterator=object_iterator)
-        return klass(**kwargs)
-    
-    def write_stream(self, instream):
-        '''
-        Processes an incomming data tap into this data tap
-        
-        :param instream: an iterable of standardized items
-        '''
-        a_stream = self.write_stream_class(self, instream)
-        if hasattr(instream, 'readers'):
-            instream.readers.add(a_stream)
-        return a_stream
-    
-    def write_item(self, item):
-        '''
-        Stores an item
-        
-        :param item: a json serializable dictionary
-        '''
-        return item
-    
+        #the default is to assume that args[0] is where we wish to save
+        if args:
+            target = args.pop(0)
+        else:
+            target = sys.stdout
+        datatap = cls(*args, **kwargs)
+        def commit(*a, **k):
+            datatap.save(target)
+        datatap.commit = commit
+        return datatap
+
+class FileTap(object):
+    '''
+    An object that handles the storage and retrieval of serialized files
+    '''
     def write_file(self, file_obj, path):
         '''
         Store a data file. 
         Returns the internal location of the path to be used for deserialization
         '''
-        return None
+        return path
     
     def read_file(self, path):
         '''
@@ -251,20 +139,3 @@ class DataTap(object):
         '''
         return None
     
-    def get_raw_item_stream(self, filetap=None):
-        '''
-        Returns an iterable of items belonging to this data tap
-        '''
-        return []
-    
-    command_option_list = []
-    
-    @classmethod
-    def load_from_command_line(cls, arglist):
-        '''
-        Retuns an instantiated DataTap with the provided arguments from commandline
-        '''
-        parser = OptionParser(option_list=cls.command_option_list)
-        options, args = parser.parse_args(arglist)
-        return cls(*args, **options.__dict__)
-

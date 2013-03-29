@@ -1,22 +1,19 @@
-from StringIO import StringIO
+from io import BytesIO
 import json
 
 from django.utils import unittest
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth.models import Group
 
-from datatap.datataps import JSONStreamDataTap, ModelDataTap
-
+from datatap.datataps import StreamDataTap, JSONDataTap, ModelDataTap
 
 
 class ModelToJsonIntegrationTestCase(unittest.TestCase):
     def test_store(self):
-        iostream = StringIO()
-        outstream = JSONStreamDataTap(stream=iostream)
-        outstream.open('w', for_datatap=ModelDataTap)
-        response = ModelDataTap.store(outstream, ContentType)
+        iostream = BytesIO()
+        tap = StreamDataTap(JSONDataTap(ModelDataTap([ContentType])))
+        tap.save(iostream)
         items = json.loads(iostream.getvalue())
-        outstream.close()
         self.assertEqual(len(items), ContentType.objects.all().count())
     
     def test_load(self):
@@ -28,14 +25,10 @@ class ModelToJsonIntegrationTestCase(unittest.TestCase):
                 'name': 'testgroup',
             }
         }
-        iostream = StringIO(json.dumps([item]))
-        instream = JSONStreamDataTap(stream=iostream)
-        instream.open('r', for_datatap=ModelDataTap)
-        result = list(ModelDataTap.load(instream))
-        instream.close()
+        iostream = BytesIO(json.dumps([item]))
+        tap = ModelDataTap(JSONDataTap(StreamDataTap(iostream)))
+        result = list(tap)
         
         self.assertEqual(len(result), 1)
         self.assertTrue(isinstance(result[0], Group))
         self.assertEqual(result[0].name, 'testgroup')
-
-

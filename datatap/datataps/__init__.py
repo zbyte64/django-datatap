@@ -27,9 +27,9 @@ Example usage::
     ModelDataTap.load(archive)
 
 '''
-from datatap.datataps.base import DataTap
+from datatap.datataps.base import DataTap, FileTap
 from datatap.datataps.memory import MemoryDataTap
+from datatap.datataps.streams import StreamDataTap, BufferedStreamDataTap, FileDataTap, JSONDataTap
 from datatap.datataps.zip import ZipFileDataTap
-from datatap.datataps.jsonstream import JSONStreamDataTap
 from datatap.datataps.model import ModelDataTap
 

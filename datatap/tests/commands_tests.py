@@ -10,10 +10,10 @@ from datatap.management.commands import datatap
 
 
 class ModelToZipCommandIntregrationTestCase(unittest.TestCase):
-    def test_dumpdatatap(self):
+    def test_model_to_zipfile(self):
         filename = mkstemp('zip', 'datataptest')[1]
         cmd = datatap.Command()
-        argv = ['manage.py', 'datatap', 'Model', 'contenttypes', '--', 'ZipFile', '--file', filename]
+        argv = ['manage.py', 'datatap', 'Model', 'contenttypes', '--', 'Zip', '--', 'File', filename]
         cmd.run_from_argv(argv)
         
         archive = zipfile.ZipFile(filename)
@@ -21,7 +21,7 @@ class ModelToZipCommandIntregrationTestCase(unittest.TestCase):
         manifest = json.load(archive.open('manifest.json', 'r'))
         self.assertEqual(len(manifest), ContentType.objects.all().count())
     
-    def test_loaddatatap(self):
+    def test_zipfile_to_model(self):
         Group.objects.all().delete()
         item = {
             'model': 'auth.group',
@@ -37,7 +37,7 @@ class ModelToZipCommandIntregrationTestCase(unittest.TestCase):
         archive.close()
         
         cmd = datatap.Command()
-        argv = ['manage.py', 'datatap', 'ZipFile', '--file', filename]
+        argv = ['manage.py', 'datatap', 'File', filename, '--', 'Zip', '--', 'Model']
         cmd.run_from_argv(argv)
         
         result = Group.objects.all()

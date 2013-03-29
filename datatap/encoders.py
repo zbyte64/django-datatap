@@ -1,5 +1,5 @@
-import collections
 import json
+import types
 
 from django.utils.functional import Promise
 from django.core.files import File
@@ -9,36 +9,6 @@ except ImportError:
     from django.utils.encoding import force_unicode as force_text
 from django.core.serializers.json import DjangoJSONEncoder
 
-
-class ObjectIteratorAdaptor(collections.Iterable):
-    '''
-    Helper class to adapt an object stream to a standardized object representation stream.
-    Standardized objects are any python datastructures that are json serializable.
-    '''
-    def __init__(self, datatap, object_iterator):
-        '''
-        :param datatap: The datatap we are reading from
-        :param object_iterator: An iterable of native objects
-        '''
-        self.datatap = datatap
-        self.object_iterator = object_iterator
-        self.readers = set()
-    
-    def transform(self, obj):
-        return obj
-    
-    def __iter__(self):
-        for obj in self.object_iterator:
-            yield self.transform(obj)
-    
-    def close(self):
-        if self in self.datatap.open_reads:
-            self.datatap.open_reads.remove(self)
-            self.notify_readers_of_close()
-    
-    def notify_readers_of_close(self):
-        for reader in self.readers:
-            reader.close()
 
 class DataTapJSONEncoder(DjangoJSONEncoder):
     def __init__(self, *args, **kwargs):
@@ -57,9 +27,13 @@ class DataTapJSONEncoder(DjangoJSONEncoder):
             return obj.name
         if isinstance(obj, Promise):
             return force_text(obj)
-        if isinstance(obj, ObjectIteratorAdaptor):
-            #TODO can we iterate through this instead?
+        
+        #TODO can we iterate through this instead?
+        if isinstance(obj, types.GeneratorType):
             return list(obj)
+        if hasattr(obj, 'next') and hasattr(obj, '__iter__'): #an iterator:
+            return list(obj)
+        
         return super(DataTapJSONEncoder, self).default(obj)
 
 class DataTapJSONDecoder(json.JSONDecoder):

@@ -2,27 +2,28 @@ from django.utils import unittest
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth.models import Group
 
-from datatap.datataps import ModelDataTap
+from datatap.datataps import MemoryDataTap, ModelDataTap
 
 
 class ModelDataTapTestCase(unittest.TestCase):
-    def test_write_item(self):
-        tap = ModelDataTap()
-        tap.open('w')
-        result = tap.write_item({
+    def test_load_item(self):
+        Group.objects.all().delete()
+        source = MemoryDataTap([{
             'model': 'auth.group',
             'pk':5,
             'fields': {
                 'name': 'testgroup',
             }
-        })
-        self.assertTrue(isinstance(result, Group))
+        }])
+        tap = ModelDataTap(instream=source)
+        result = list(tap)
+        self.assertTrue(isinstance(result[0], Group))
         tap.close()
+        self.assertTrue(Group.objects.filter(pk=5).exists())
     
     def test_get_item_stream(self):
-        tap = ModelDataTap(ContentType, Group.objects.all())
-        tap.open('r')
-        items = list(tap.get_item_stream())
+        tap = ModelDataTap(instream=[ContentType, Group.objects.all()])
+        items = list(tap)
         self.assertTrue(items)
         self.assertEqual(len(items), ContentType.objects.all().count() + Group.objects.all().count())
         tap.close()

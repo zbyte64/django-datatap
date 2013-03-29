@@ -6,16 +6,18 @@ from datatap.loading import lookup_datatap, autodiscover
 
 
 class Command(BaseCommand):
-    args = '<source> <source vargs> [-- <destination> <destination vargs>]'
-    help = 'Use datataps to export data'
+    args = '<datataptype> <datatap vargs> [(-- <datataptype> <datatap vargs>), ...]'
+    help = 'Chain a series of datataps with the source to the left and the one to write to being the right most. Each datatap invocation is seperated by "--"'
     
     
     def get_datatap_class(self, name):
         return lookup_datatap(name)
     
-    def load_datatap(self, name, arglist):
+    def load_datatap(self, name, arglist, previous=None, for_write=False):
         datatap = self.get_datatap_class(name)
-        return datatap.load_from_command_line(arglist)
+        if for_write:
+            return datatap.load_from_command_line_for_write(arglist, instream=previous)
+        return datatap.load_from_command_line(arglist, instream=previous)
     
     def run_from_argv(self, argv):
         """
@@ -30,55 +32,42 @@ class Command(BaseCommand):
         #the first argument that is only "--" is the start of destination
         args = argv[2:]
         standard_args = list()
-        source = None
-        source_args = list()
-        destination = None
-        destination_args = list()
+        parts = list()
         
         while args and args[0].startswith('-'):
             standard_args.append(args.pop(0))
         
-        source = args.pop(0)
+        current_part = list()
+        while args:
+            arg = args.pop(0)
+            if arg == '--':
+                parts.append(current_part)
+                current_part = list()
+            else:
+                current_part.append(arg)
+        if current_part:
+            parts.append(current_part)
         
-        try:
-            position = args.index('--')
-        except ValueError:
-            source_args = args
-        else:
-            source_args = args[:position]
-            destination = args[position+1]
-            destination_args = args[position+2:]
-        
-        if not source:
+        if not parts:
             return self.print_help(argv[0], argv[1])
         
         options, args = parser.parse_args(standard_args)
         handle_default_options(options)
         
-        source_tap = self.load_datatap(source, source_args)
+        if len(parts) == 1:
+            #we defined a source but no where to write
+            parts.extend([['JSON'], ['Stream']])
         
-        if not destination:
-            source_tap.open('r')
-            DestinationTap = source_tap.detect_originating_datatap()
-            if DestinationTap is not None:
-                destination = DestinationTap.get_ident()
-            else:
-                destination = 'JSONStream'
-            destination_args = []
+        datataps = list()
+        datatap = None
+        for index, tapentry in enumerate(parts):
+            is_last = len(parts) - 1 == index
+            datatap = self.load_datatap(tapentry.pop(0), tapentry, previous=datatap, for_write=is_last)
+            datataps.append(datatap)
         
-        destination_tap = self.load_datatap(destination, destination_args)
-        
-        options.__dict__['source_tap'] = source_tap
-        options.__dict__['destination_tap'] = destination_tap
-        
+        options.__dict__['datataps'] = datataps
         self.execute(*args, **options.__dict__)
     
     def handle(self, *args, **options):
-        source_tap = options.pop('source_tap')
-        destination_tap = options.pop('destination_tap')
-        source_tap.open('r', for_datatap=destination_tap)
-        destination_tap.open('w', for_datatap=source_tap)
-        
-        source_tap.dump(destination_tap)
-        source_tap.close()
-        destination_tap.close()
+        datataps = options.pop('datataps')
+        datataps[-1].commit() #datataps constructed with for_write get a commit method

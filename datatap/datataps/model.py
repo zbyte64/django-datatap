@@ -5,19 +5,9 @@ from django.core.files import File
 from django.core.serializers.python import Serializer, Deserializer
 from django.utils.encoding import is_protected_type
 
-from datatap.encoders import ObjectIteratorAdaptor
 from datatap.loading import register_datatap
-from datatap.datataps.base import DataTap, WriteStream
+from datatap.datataps.base import DataTap
 
-
-class ModelWriteStream(WriteStream):
-    def __init__(self, datatap, itemstream):
-        super(ModelWriteStream, self).__init__(datatap, Deserializer(itemstream))
-    
-    def process_item(self, item):
-        #item is a deserialized object
-        item.save()
-        return item.object
 
 class FileAwareSerializer(Serializer):
     def handle_field(self, obj, field):
@@ -27,80 +17,24 @@ class FileAwareSerializer(Serializer):
         else:
             self._current[field.name] = field.value_to_string(obj)
 
-class ModelIteratorAdaptor(ObjectIteratorAdaptor):
-    def __init__(self, use_natural_keys=True, **kwargs):
-        self.serializer = FileAwareSerializer()
-        self.use_natural_keys = use_natural_keys
-        super(ModelIteratorAdaptor, self).__init__(**kwargs)
-    
-    def transform(self, obj):
-        #TODO not thread safe
-        self.serializer.serialize([obj], use_natural_keys=self.use_natural_keys)
-        return self.serializer.objects.pop()
-
-class ModelReadDataTap(DataTap):
-    inner_domain = 'models'
-    outer_domain = 'primitive'
-    
-    def __init__(self, *model_sources, **kwargs):
-        kwargs['instream'] = model_sources or []
-        super(ModelReadDataTap, self).__init__(**kwargs)
-    
-    def get_raw_item_stream(self, filetap=None):
-        '''
-        Yields objects from the model sources
-        '''
-        for source in self.instream:
-            try:
-                is_model = issubclass(source, models.Model)
-                is_instance = False
-            except TypeError:
-                is_model = False
-                is_instance = isinstance(source, models.Model)
-            
-            if is_model:
-                queryset = source.objects.all().iterator()
-            elif is_instance:
-                queryset = [source]
-            else:
-                if hasattr(source, 'iterator'):
-                    queryset = source.iterator()
-                else:
-                    queryset = source
-            for item in queryset:
-                yield item
-
-class ModelWriteDataTap(DataTap):
-    inner_domain = 'primitive'
-    outer_domain = 'models'
-    
-    def commit(self):
-        for item in Deserializer(self.instream):
-            item.save()
-            #item.object
-    
-    def write(self, chunk):
-        result = Deserializer([chunk]).next()
-        result.save()
-        return result.object
-        
-
 class ModelDataTap(DataTap):
     '''
     Reads and writes from Django's ORM
     '''
-    write_stream_class = ModelWriteStream
-    object_iterator_class = ModelIteratorAdaptor
+    def __init__(self, instream=None, use_natural_keys=True, **kwargs):
+        self.use_natural_keys = use_natural_keys
+        super(ModelDataTap, self).__init__(instream, **kwargs)
     
-    def __init__(self, *model_sources, **kwargs):
-        self.model_sources = model_sources or []
-        super(ModelDataTap, self).__init__(**kwargs)
+    def get_domain(self):
+        if self.instream is None:
+            return 'model'
+        if isinstance(self.instream, (list, tuple)):
+            return 'primitive'
+        if self.instream.domain == 'primitive':
+            return 'model'
     
-    def get_raw_item_stream(self, filetap=None):
-        '''
-        Yields objects from the model sources
-        '''
-        for source in self.model_sources:
+    def get_instance_stream(self, instream):
+        for source in instream:
             try:
                 is_model = issubclass(source, models.Model)
                 is_instance = False
@@ -120,25 +54,61 @@ class ModelDataTap(DataTap):
             for item in queryset:
                 yield item
     
-    def write_item(self, item):
+    def get_primitive_stream(self, instream):
         '''
-        Creates and returns a model instance
+        Convert various model sources to primitive objects
         '''
-        result = Deserializer([item]).next()
-        result.save()
-        return result.object
+        serializer = FileAwareSerializer()
+        instances = self.get_instance_stream(instream)
+        return serializer.serialize(instances, use_natural_keys=self.use_natural_keys)
+    
+    def get_deserialized_model_stream(self, instream):
+        '''
+        Convert primitive objects to deserialized model instances
+        '''
+        return Deserializer(instream)
+    
+    def get_model_stream(self, instream):
+        '''
+        Convert primitive objects to saved model instances
+        '''
+        for item in self.get_deserialized_model_stream(instream):
+            item.save()
+            yield item.object
     
     @classmethod
-    def load_from_command_line(cls, arglist):
+    def load_from_command_line(cls, arglist, instream=None):
         parser = OptionParser(option_list=cls.command_option_list)
         options, args = parser.parse_args(arglist)
-        model_sources = list()
-        for arg in args: #list of apps and model names
-            if '.' in arg:
-                model_sources.append(models.get_model(*arg.split(".", 1)))
-            else:
-                #get models from appname
-                model_sources.extend(models.get_models(models.get_app(arg)))
-        return cls(*model_sources, **options.__dict__)
+        kwargs = options.__dict__
+        if instream is None:
+            model_sources = list()
+            for arg in args: #list of apps and model names
+                if '.' in arg:
+                    model_sources.append(models.get_model(*arg.split(".", 1)))
+                else:
+                    #get models from appname
+                    model_sources.extend(models.get_models(models.get_app(arg)))
+            kwargs['instream'] = model_sources
+        else:
+            kwargs['instream'] = instream
+        return cls(**kwargs)
+    
+    @classmethod
+    def load_from_command_line_for_write(cls, arglist, instream):
+        '''
+        Retuns an instantiated DataTap with the provided arguments from commandline
+        '''
+        parser = OptionParser(option_list=cls.command_option_list)
+        options, args = parser.parse_args(arglist)
+        kwargs = options.__dict__
+        kwargs['instream'] = instream
+        
+        datatap = cls(*args, **kwargs)
+        def commit(*a, **k):
+            #by simply reading we are saving
+            return datatap.read()
+        datatap.commit = commit
+        return datatap
 
 register_datatap('Model', ModelDataTap)
