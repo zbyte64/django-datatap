@@ -1,3 +1,16 @@
+'''
+ModelStoreDT(JSONEncodeDT(FileDT(filename))) => iterable, .commit()
+FileDT(JSONDecodeDT(ModelSourceDT), filename)
+
+S3DT(ZipFileDT(ModelDT))
+
+TarDT(S3DT).autoload() => ModelDT(TarDT(S3DT))
+
+STDOUT(JSONDT(ModelDT)) => StreamDT(JSONDT(ModelDT), sys.stdout)
+FileDT(JSONDT(ModelDT), 'myfile.json') => StreamDT(JSONDT(ModelDT), open('myfile.json', r'))
+
+'''
+
 import sys
 from optparse import OptionParser
 
@@ -6,13 +19,35 @@ from datatap.loading import register_datatap
 from datatap.datataps.base import DataTap
 
 
-class JSONStreamDataTap(DataTap):
+class StreamDataTap(DataTap):
+    inner_domain = 'text'
+    outer_domain = 'text'
+    
+    def __init__(self, outstream=sys.stdout, **kwargs):
+        self.outstream = outstream
+        super(StreamDataTap, self).__init__(**kwargs)
+    
+    def write(self, chunk):
+        self.outstream.write(chunk)
+
+class FileDataTap(StreamDataTap):
+    def __init__(self, outstream=None, instream=None):
+        '''
+        :param outstream: A filename or file like object
+        :param instream: A filename or file like object
+        '''
+        if isinstance(outstream, basestring):
+            outstream = open(outstream, 'w')
+        if isinstance(instream, basestring):
+            instream = open(instream, 'r')
+        super(FileDataTap, self).__init__(outstream=outstream, instream=instream)
+
+class JSONDecodeDataTap(DataTap):
     '''
-    Reads and writes from a stream serialized with json
+    Decodes JSON objects from a text domain
     '''
-    def __init__(self, stream, **kwargs):
-        self.stream = stream
-        super(JSONStreamDataTap, self).__init__(**kwargs)
+    inner_domain = 'text'
+    outer_domain = 'primitive'
     
     def get_raw_item_stream(self, filetap=None):
         '''
@@ -21,32 +56,13 @@ class JSONStreamDataTap(DataTap):
         :param filetap: The filetap to load files from
         '''
         decoder = DataTapJSONDecoder(filetap=filetap)
-        return decoder.decode(self.stream.read())
-    
-    def write_stream(self, instream, filetap=None):
-        '''
-        Writes JSON encoded objects from instream to the stream
-        
-        :param filetap: The filetap to write files to
-        '''
-        encoder = DataTapJSONEncoder(filetap=filetap)
-        for chunk in encoder.iterencode(instream):
-            self.stream.write(chunk)
-    
-    def write_item(self, item, filetap=None):
-        encoder = DataTapJSONEncoder(filetap=filetap)
-        for chunk in encoder.iterencode(item):
-            self.stream.write(chunk)
-    
-    @classmethod
-    def load_from_command_line(cls, arglist):
-        parser = OptionParser(option_list=cls.command_option_list)
-        options, args = parser.parse_args(arglist)
-        if len(args):
-            #perhaps this should be subclassed to be a JSONFile
-            options.__dict__['stream'] = open(args[0], 'r')
-        else:
-            options.__dict__['stream'] = sys.stdout
-        return cls(**options.__dict__)
+        return decoder.decode(self.instream.read())
 
-register_datatap('JSONStream', JSONStreamDataTap)
+class JSONEncodeDataTap(DataTap):
+    inner_domain = 'primitive'
+    outer_domain = 'text'
+    
+    def get_raw_item_stream(self, filetap=None):
+        encoder = DataTapJSONEncoder(filetap=filetap)
+        return encoder.iterencode(self.instream)
+

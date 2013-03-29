@@ -38,6 +38,53 @@ class ModelIteratorAdaptor(ObjectIteratorAdaptor):
         self.serializer.serialize([obj], use_natural_keys=self.use_natural_keys)
         return self.serializer.objects.pop()
 
+class ModelReadDataTap(DataTap):
+    inner_domain = 'models'
+    outer_domain = 'primitive'
+    
+    def __init__(self, *model_sources, **kwargs):
+        kwargs['instream'] = model_sources or []
+        super(ModelReadDataTap, self).__init__(**kwargs)
+    
+    def get_raw_item_stream(self, filetap=None):
+        '''
+        Yields objects from the model sources
+        '''
+        for source in self.instream:
+            try:
+                is_model = issubclass(source, models.Model)
+                is_instance = False
+            except TypeError:
+                is_model = False
+                is_instance = isinstance(source, models.Model)
+            
+            if is_model:
+                queryset = source.objects.all().iterator()
+            elif is_instance:
+                queryset = [source]
+            else:
+                if hasattr(source, 'iterator'):
+                    queryset = source.iterator()
+                else:
+                    queryset = source
+            for item in queryset:
+                yield item
+
+class ModelWriteDataTap(DataTap):
+    inner_domain = 'primitive'
+    outer_domain = 'models'
+    
+    def commit(self):
+        for item in Deserializer(self.instream):
+            item.save()
+            #item.object
+    
+    def write(self, chunk):
+        result = Deserializer([chunk]).next()
+        result.save()
+        return result.object
+        
+
 class ModelDataTap(DataTap):
     '''
     Reads and writes from Django's ORM
