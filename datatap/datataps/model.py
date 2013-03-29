@@ -20,6 +20,9 @@ class FileAwareSerializer(Serializer):
 class ModelDataTap(DataTap):
     '''
     Reads and writes from Django's ORM
+    
+    ModelDT([MyModel, Queryset, ModelInstance]) => primitive representation of sources
+    ModelDT(ZipDT(...)) => deserialized saved objects from the zip datatap
     '''
     def __init__(self, instream=None, use_natural_keys=True, **kwargs):
         self.use_natural_keys = use_natural_keys

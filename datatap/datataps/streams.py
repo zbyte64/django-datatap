@@ -1,4 +1,5 @@
 import sys
+import urllib2 #TODO requests
 from io import BytesIO
 from optparse import OptionParser
 
@@ -40,23 +41,12 @@ class BufferedStreamDataTap(StreamDataTap):
         fileobj = BytesIO(fileobj)
         return super(BufferedStreamDataTap, self).save(fileobj)
 
-'''
-FileDT(ZipDT(ModelDT)).write(filename) => write to file
-ZipDT(ModelDT).write(fileobj) => write to file obj
-ModelDT(ZipDT(FileDT)) => read from file
-
-
-ZipDT(Primitive) => file domain
-FileDT(File) => disk domain
-S3DT(File) => s3 domain or url domain
-'''
-
 class FileDataTap(StreamDataTap):
     '''
     A stream data tap that opens files for io
     
     FileDT(JSONDT(ModelDT)).write(filename) => write to filename
-    FileDT(filename=filename) => text
+    FileDT(filename=filename) => bytes stream
     '''
     def __init__(self, filename=None, **kwargs):
         '''
@@ -80,23 +70,29 @@ class URLDataTap(BufferedStreamDataTap):
     A stream data tap that opens a url for io
     
     URLDT(JSONDT(ModelDT)).write(url) => big post
-    URLDT(url=url) => text
+    URLDT(url=url) => bytes stream
     '''
     def __init__(self, url=None, **kwargs):
         '''
         :param filename: A filename
         '''
         if url:
-            kwargs['instream'] = requests.open(url)
+            kwargs['instream'] = urllib2.open(url)
         super(URLDataTap, self).__init__(**kwargs)
     
     def save(self, url):
+        #TODO i think requests might make this easier and better
         fileobj = requests.open(url, 'w')
         return super(URLDataTap, self).save(fileobj)
+
+register_datatap('URL', URLDataTap)
 
 class JSONDataTap(DataTap):
     '''
     A data tap that converts primitive objects to and from a text datatap
+    
+    JSONDT(ModelDT) => json representation of models
+    JSONDT(FileDT(filename)) => decoded json from filename
     '''
     def get_domain(self):
         if self.instream.domain == 'primitive':

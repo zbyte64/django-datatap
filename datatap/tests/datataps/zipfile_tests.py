@@ -1,4 +1,3 @@
-from tempfile import mkstemp
 import zipfile
 import json
 import io
@@ -7,7 +6,7 @@ from django.utils import unittest
 from django.core.files.base import File, ContentFile as BaseContentFile
 from django.core.files.storage import DefaultStorage
 
-from datatap.datataps import MemoryDataTap, StreamDataTap, FileDataTap, ZipFileDataTap
+from datatap.datataps import MemoryDataTap, StreamDataTap, ZipFileDataTap
 
 
 class ContentFile(BaseContentFile): #for ease with Django 1.3

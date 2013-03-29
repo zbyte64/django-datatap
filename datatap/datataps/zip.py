@@ -18,12 +18,6 @@ class DjangoZipExtFile(File):
         self.name = zipinfo.filename
         self._size = zipinfo.file_size
 
-'''
-
-#CONSIDER: writing is currently done by ZipDT. FileDT needs to pass a file object to ZipDT for writing.
-#this is because not everything can be a pipe, hence ZipDT.open(fileobj, 'w')
-dt.write_file_stream(instream, fileobj) => take the stream, convert, and write to fileobj
-'''
 class ZipFileTap(FileTap):
     def __init__(self, archive):
         self.archive = archive
@@ -39,13 +33,12 @@ class ZipFileTap(FileTap):
         zipinfo = self.archive.getinfo(path)
         return DjangoZipExtFile(zipextfile, zipinfo)
 
-
 class ZipFileDataTap(DataTap):
     '''
-    Reads and writes objects from a zipfile
+    Reads and writes objects from a zipfile with asset storage support
     
-    FileDT(ZipDT(ModelDT)) => write to file
-    ModelDT(ZipDT(FileDT)) => read from file
+    FileDT(ZipDT(ModelDT)).write(filename) => write models to filename
+    ModelDT(ZipDT(FileDT(filename))) => read from filename into models
     '''
     
     def get_domain(self):
