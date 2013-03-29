@@ -11,7 +11,7 @@ from datatap.management.commands import datatap
 
 class ModelToZipCommandIntregrationTestCase(unittest.TestCase):
     def test_model_to_zipfile(self):
-        filename = mkstemp('zip', 'datataptest')[1]
+        filename = mkstemp('.zip', 'datataptest')[1]
         cmd = datatap.Command()
         argv = ['manage.py', 'datatap', 'Model', 'contenttypes', '--', 'Zip', '--', 'File', filename]
         cmd.run_from_argv(argv)
@@ -30,7 +30,7 @@ class ModelToZipCommandIntregrationTestCase(unittest.TestCase):
                 'name': 'testgroup',
             }
         }
-        filename = mkstemp('zip', 'datataptest')[1]
+        filename = mkstemp('.zip', 'datataptest')[1]
         archive = zipfile.ZipFile(filename, 'w')
         archive.writestr('manifest.json', json.dumps([item]))
         archive.writestr('originator.txt', 'Model')

@@ -78,6 +78,10 @@ class ZipFileDataTapTestCase(unittest.TestCase):
         archive.writestr('assets/readme2.txt', 'readme2')
         archive.close()
         
+        archive = zipfile.ZipFile(archive_stream, 'r')
+        archive.testzip()
+        archive.close()
+        
         tap = ZipFileDataTap(StreamDataTap(archive_stream))
         items = list(tap.get_item_stream())
         self.assertEqual(len(items), 2)

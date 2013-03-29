@@ -9,7 +9,7 @@ from datatap.datataps.base import DataTap
 
 class StreamDataTap(DataTap):
     '''
-    A data tap that fowards the instream
+    A data tap that fowards the instream or saves the instream to a real stream
     '''
     def get_domain(self):
         return 'bytes'
@@ -19,6 +19,9 @@ class StreamDataTap(DataTap):
     
     def read(self, *args, **kwargs):
         return self.item_stream.read(*args, **kwargs)
+    
+    def save(self, fileobj):
+        return self.instream.save(fileobj)
 
 register_datatap('Stream', StreamDataTap)
 

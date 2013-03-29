@@ -1,4 +1,5 @@
 import zipfile
+import io
 from optparse import make_option
 
 from django.core.files.base import File
@@ -10,17 +11,12 @@ from datatap.datataps.streams import StreamDataTap, JSONDataTap
 
 class DjangoZipExtFile(File):
     def __init__(self, zipextfile, zipinfo):
-        self.file = zipextfile
+        #we could try to not load it in all at once, but zipfile's crc checker seems to break
+        self.file = io.BytesIO(zipextfile.read())
         self.zipinfo = zipinfo
         self.mode = 'r'
         self.name = zipinfo.filename
         self._size = zipinfo.file_size
-    
-    def seek(self, position):
-        if position != 0:
-            #this will raise an unsupported operation
-            return self.file.seek(position)
-        #TODO if we have already done a read, reopen file
 
 '''
 
@@ -67,6 +63,7 @@ class ZipFileDataTap(DataTap):
         return ZipFileTap(archive)
     
     def save(self, fileobj):
+        print 'zip save to:', fileobj
         archive = zipfile.ZipFile(fileobj, 'w')
         filetap = self.get_filetap(archive)
         encoded_stream = JSONDataTap(self.item_stream, filetap=filetap) #encode our objects into json

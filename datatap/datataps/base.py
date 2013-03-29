@@ -71,6 +71,7 @@ class DataTap(object):
         for item in self:
             if not isinstance(item, basestring):
                 item = force_text(item)
+            print 'writing:', item
             fileobj.write(item)
     
     def detect_originating_datatap(self):
