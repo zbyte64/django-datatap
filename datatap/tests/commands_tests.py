@@ -10,6 +10,11 @@ from datatap.management.commands import datatap
 
 
 class ModelToZipCommandIntregrationTestCase(unittest.TestCase):
+    def test_help(self):
+        cmd = datatap.Command()
+        argv = ['manage.py', 'datatap', '--help']
+        cmd.run_from_argv(argv)
+    
     def test_model_to_zipfile(self):
         filename = mkstemp('.zip', 'datataptest')[1]
         cmd = datatap.Command()

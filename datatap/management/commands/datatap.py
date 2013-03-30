@@ -2,13 +2,22 @@ from __future__ import absolute_import
 
 from django.core.management.base import BaseCommand, CommandError, handle_default_options
 
-from datatap.loading import lookup_datatap, autodiscover
+from datatap.loading import get_datatap_registry, lookup_datatap, autodiscover
 
 
 class Command(BaseCommand):
     args = '<datataptype> <datatap vargs> [(-- <datataptype> <datatap vargs>), ...]'
     help = 'Chain a series of datataps with the source to the left and the one to write to being the right most. Each datatap invocation is seperated by "--"'
     
+    def print_help(self, prog_name, subcommand):
+        super(Command, self).print_help(prog_name, subcommand)
+        registry = get_datatap_registry()
+        print '\nAvailable datataps: %s' % registry.iterkeys()
+        for section, datatap in registry.iteritems():
+            print '\nSection: %s' % section
+            print datatap.__doc__
+            for option in datatap.command_option_list:
+                print '\t', option
     
     def get_datatap_class(self, name):
         return lookup_datatap(name)

@@ -8,6 +8,9 @@ def register_datatap(name, cls):
 def lookup_datatap(name):
     return DATATAP_REGISTRY[name]
 
+def get_datatap_registry():
+    return DATATAP_REGISTRY
+
 def autodiscover():
     """
     Auto-discover INSTALLED_APPS datataps.py modules and fail silently when
