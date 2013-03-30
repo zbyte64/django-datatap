@@ -25,7 +25,10 @@ class TarFileTap(FileTap):
     def write_file(self, file_obj, path):
         #TODO write in chunks
         #TODO write in a directory
-        self.archive.writestr(path, file_obj.read())
+        payload = file_obj.read()
+        tarinfo = tarfile.TarInfo(path)
+        tarinfo.size = len(payload)
+        self.archive.addfile(tarinfo, BytesIO(payload))
         return path
     
     def read_file(self, path):

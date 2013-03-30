@@ -42,6 +42,9 @@ class TarFileDataTapTestCase(unittest.TestCase):
         archive.addfile(tinfo, file_obj)
         archive.close()
         
+        archive = tarfile.TarFile(fileobj=archive_stream)
+        self.assertTrue('manifest.json' in archive.getnames(), "Apparently I don't know how to make proper tarfiles")
+        
         intap = MemoryDataTap(TarFileDataTap(StreamDataTap(archive_stream)))
         result = list(intap)
         
