@@ -12,7 +12,7 @@ class Command(BaseCommand):
     def print_help(self, prog_name, subcommand):
         super(Command, self).print_help(prog_name, subcommand)
         registry = get_datatap_registry()
-        print '\nAvailable datataps: %s' % registry.iterkeys()
+        print '\nAvailable datataps: %s' % ', '.join(registry.iterkeys())
         for section, datatap in registry.iteritems():
             print '\nSection: %s' % section
             print datatap.__doc__

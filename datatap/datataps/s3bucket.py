@@ -12,10 +12,19 @@ from datatap.datataps.streams import StreamDataTap
 class S3Upload(io.BytesIO):
     def __init__(self, bucket_key):
         self.bucket_key = bucket_key
+        self._closed = False
         super(S3Upload, self).__init__()
     
+    def __del__(self):
+        self.close()
+    
     def close(self):
-        self.bucket_key.set_contents_from_stream(self)
+        if not self._closed:
+            #TODO dont convert to a string first
+            self.seek(0)
+            self.bucket_key.set_contents_from_string(self.read())
+        self._closed = True
+        
 
 class S3DataTap(StreamDataTap):
     '''
@@ -43,6 +52,7 @@ class S3DataTap(StreamDataTap):
             key = self.bucket.get_key(key_name)
             instream = io.BytesIO()
             key.get_contents_to_file(instream)
+            instream.seek(0)
             instream = instream
         super(S3DataTap, self).__init__(instream, **kwargs)
     
@@ -67,6 +77,26 @@ class S3DataTap(StreamDataTap):
         if not kwargs.get('key_name') and args:
             kwargs['key_name'] = args.pop(0)
         return cls(**kwargs)
+    
+    @classmethod
+    def load_from_command_line_for_write(cls, arglist, instream):
+        '''
+        Retuns an instantiated DataTap with the provided arguments from commandline
+        '''
+        parser = OptionParser(option_list=cls.command_option_list)
+        options, args = parser.parse_args(arglist)
+        kwargs = options.__dict__
+        kwargs['instream'] = instream
+        
+        if args:
+            target = args.pop(0)
+        else:
+            target = kwargs.pop('key_name')
+        datatap = cls(*args, **kwargs)
+        def commit(*a, **k):
+            datatap.send(target)
+        datatap.commit = commit
+        return datatap
 
 register_datatap('S3', S3DataTap)
 
