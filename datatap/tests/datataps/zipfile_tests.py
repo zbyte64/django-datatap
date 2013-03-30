@@ -82,7 +82,7 @@ class ZipFileDataTapTestCase(unittest.TestCase):
         archive.close()
         
         tap = ZipFileDataTap(StreamDataTap(archive_stream))
-        items = list(tap.get_item_stream())
+        items = list(tap)
         self.assertEqual(len(items), 2)
         self.assertEqual(items[0]['test1'], 'item')
         

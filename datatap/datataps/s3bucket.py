@@ -17,9 +17,9 @@ class S3Upload(io.BytesIO):
     def close(self):
         self.bucket_key.set_contents_from_stream(self)
 
-class S3BucketDataTap(StreamDataTap):
+class S3DataTap(StreamDataTap):
     '''
-    A stream data tap that stores to an S3 Bucket
+    A stream data tap that stores to an S3 Bucket. Reads off django-storages for aws credentials.
     
     S3BucketDT(JSONDT(ModelDT)).send(key_name) => write to key name
     S3BucketDT(key_name) => bytes stream
@@ -44,12 +44,12 @@ class S3BucketDataTap(StreamDataTap):
             instream = io.BytesIO()
             key.get_contents_to_file(instream)
             instream = instream
-        super(S3BucketDataTap, self).__init__(instream, **kwargs)
+        super(S3DataTap, self).__init__(instream, **kwargs)
     
     def send(self, key_name):
         key = self.bucket.new_key(key_name)
         fileobj = S3Upload(key)
-        return super(S3BucketDataTap, self).send(fileobj)
+        return super(S3DataTap, self).send(fileobj)
     
     command_option_list = [
         Option('--key-name', action='store', dest='key_name'),
@@ -68,5 +68,5 @@ class S3BucketDataTap(StreamDataTap):
             kwargs['key_name'] = args.pop(0)
         return cls(**kwargs)
 
-register_datatap('S3Bucket', S3BucketDataTap)
+register_datatap('S3', S3DataTap)
 

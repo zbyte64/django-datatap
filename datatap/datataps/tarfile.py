@@ -35,8 +35,9 @@ class WritableTarExtFile(BytesIO):
     
 
 class TarFileTap(FileTap):
-    def __init__(self, archive):
+    def __init__(self, archive, files=None):
         self.archive = archive
+        self.files = files
     
     def write_file(self, file_obj, path):
         #TODO write in chunks
@@ -48,9 +49,7 @@ class TarFileTap(FileTap):
         return path
     
     def read_file(self, path):
-        zipextfile = self.archive.open(path, 'r')
-        zipinfo = self.archive.getinfo(path)
-        return DjangoTarExtFile(zipextfile, zipinfo)
+        return self.files[path]
 
 class TarFileDataTap(DataTap):
     '''
@@ -71,8 +70,8 @@ class TarFileDataTap(DataTap):
             return 'bytes'
         assert False, 'Unrecognized instream domain: %s' % self.instream.domain
     
-    def get_filetap(self, archive):
-        return TarFileTap(archive)
+    def get_filetap(self, archive, files=None):
+        return TarFileTap(archive, files)
     
     def send(self, fileobj):
         mode = 'w'
@@ -96,8 +95,20 @@ class TarFileDataTap(DataTap):
         if self.compression:
             mode += ':' + self.compression
         archive = tarfile.TarFile(fileobj=instream.item_stream, mode=mode)
-        filetap = self.get_filetap(archive)
-        return JSONDataTap(StreamDataTap(archive.extractfile('manifest.json')), filetap=filetap)
+        manifest = None
+        files = {}
+        for tarinfo in archive:
+            if not tarinfo.isreg():
+                continue
+            fileobj = archive.extractfile(tarinfo)
+            assert fileobj is not None
+            files[tarinfo.path] = DjangoTarExtFile(fileobj, tarinfo)
+            if tarinfo.name == 'manifest.json':
+                manifest = fileobj
+        if manifest is None:
+            archive.extractfile('manifest.json') #TODO raise a proper exception
+        filetap = self.get_filetap(archive, files)
+        return JSONDataTap(StreamDataTap(manifest), filetap=filetap)
     
     def get_bytes_stream(self, instream):
         return instream

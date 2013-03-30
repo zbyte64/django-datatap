@@ -96,7 +96,7 @@ class TarFileDataTapTestCase(unittest.TestCase):
         
         archive_stream.seek(0)
         tap = TarFileDataTap(StreamDataTap(archive_stream))
-        items = list(tap.get_item_stream())
+        items = list(tap)
         self.assertEqual(len(items), 2)
         self.assertEqual(items[0]['test1'], 'item')
         

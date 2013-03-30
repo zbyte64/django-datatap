@@ -30,4 +30,10 @@ from datatap.datataps.memory import MemoryDataTap
 from datatap.datataps.streams import StreamDataTap, BufferedStreamDataTap, FileDataTap, JSONDataTap
 from datatap.datataps.zip import ZipFileDataTap
 from datatap.datataps.model import ModelDataTap
+try:
+    import boto
+except ImportError:
+    pass
+else:
+    from datatap.datataps.s3bucket import S3DataTap
 
