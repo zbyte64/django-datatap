@@ -16,8 +16,11 @@ class ModelDataTapTestCase(unittest.TestCase):
             }
         }])
         tap = ModelDataTap(instream=source)
+        #by default we get deserialized objects that have yet to be saved
         result = list(tap)
-        self.assertTrue(isinstance(result[0], Group))
+        self.assertTrue(len(result), 1)
+        self.assertTrue(hasattr(result[0], 'save'))
+        tap.commit() #this saves said objects
         tap.close()
         self.assertTrue(Group.objects.filter(pk=5).exists())
     

@@ -55,8 +55,7 @@ class ZipFileDataTap(DataTap):
     def get_filetap(self, archive):
         return ZipFileTap(archive)
     
-    def save(self, fileobj):
-        print 'zip save to:', fileobj
+    def send(self, fileobj):
         archive = zipfile.ZipFile(fileobj, 'w')
         filetap = self.get_filetap(archive)
         encoded_stream = JSONDataTap(self.item_stream, filetap=filetap) #encode our objects into json

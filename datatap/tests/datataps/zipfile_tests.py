@@ -21,7 +21,7 @@ class ZipFileDataTapTestCase(unittest.TestCase):
         }])
         ziptap = ZipFileDataTap(instream)
         archive_stream = io.BytesIO()
-        response = ziptap.save(archive_stream)
+        response = ziptap.send(archive_stream)
         archive = zipfile.ZipFile(archive_stream)
         self.assertTrue('manifest.json' in archive.namelist())
         manifest = json.load(archive.open('manifest.json', 'r'))
@@ -50,7 +50,7 @@ class ZipFileDataTapTestCase(unittest.TestCase):
         }]
         ziptap = ZipFileDataTap(MemoryDataTap(payload))
         archive_stream = io.BytesIO()
-        response = ziptap.save(archive_stream)
+        response = ziptap.send(archive_stream)
         
         archive = zipfile.ZipFile(archive_stream, 'r')
         payload = archive.read('manifest.json')

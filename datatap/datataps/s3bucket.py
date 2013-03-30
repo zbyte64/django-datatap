@@ -18,10 +18,10 @@ class S3BucketDataTap(StreamDataTap):
     '''
     A stream data tap that stores to an S3 Bucket
     
-    S3BucketDT(JSONDT(ModelDT)).write(key_name) => write to key name
+    S3BucketDT(JSONDT(ModelDT)).send(key_name) => write to key name
     S3BucketDT(key_name) => bytes stream
     
-    S3BucketDT(ZipDT(ModelDT)).write(key_name) => write a zip archive to key name
+    S3BucketDT(ZipDT(ModelDT)).send(key_name) => write a zip archive to key name
     ModelDT(ZipDt(S3BucketDT(key_name))) => load models from zip archive at key name
     '''
     def __init__(self, aws_access_key_id, aws_secret_access_key, bucket_name, key_name=None, **kwargs):
@@ -34,9 +34,9 @@ class S3BucketDataTap(StreamDataTap):
             kwargs['instream'] = instream
         super(S3BucketDataTap, self).__init__(**kwargs)
     
-    def save(self, key_name):
+    def send(self, key_name):
         key = self.bucket.new_key(key_name)
         fileobj = S3Upload(key)
-        return super(S3BucketDataTap, self).save(fileobj)
+        return super(S3BucketDataTap, self).send(fileobj)
 
 register_datatap('S3Bucket', S3BucketDataTap)

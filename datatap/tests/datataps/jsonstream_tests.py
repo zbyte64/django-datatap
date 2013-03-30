@@ -10,7 +10,7 @@ class JSONDataTapTestCase(unittest.TestCase):
         out_stream = BytesIO()
         source = MemoryDataTap([{'test':'item'}])
         tap = JSONDataTap(instream=source)
-        tap.save(out_stream)
+        tap.send(out_stream)
         tap.close()
         self.assertEqual('[{"test": "item"}]', out_stream.getvalue())
     

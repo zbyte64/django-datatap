@@ -13,7 +13,7 @@ class StreamDataTap(DataTap):
     A data tap that fowards the instream or saves the instream to a real stream
     '''
     def get_domain(self):
-        return 'bytes'
+        return 'bytes' #bytes go in, bytes go out
     
     def get_bytes_stream(self, instream):
         return instream
@@ -21,8 +21,12 @@ class StreamDataTap(DataTap):
     def read(self, *args, **kwargs):
         return self.item_stream.read(*args, **kwargs)
     
-    def save(self, fileobj):
-        return self.instream.save(fileobj)
+    def send(self, fileobj):
+        #err?
+        return self.instream.send(fileobj)
+    
+    def write(self, chunk):
+        self.instream.write(chunk)
 
 register_datatap('Stream', StreamDataTap)
 
@@ -37,9 +41,9 @@ class BufferedStreamDataTap(StreamDataTap):
             instream = BytesIO(instream)
         return super(BufferedStreamDataTap, self).__init__(instream=instream, **kwargs)
     
-    def save(self, fileobj):
+    def send(self, fileobj):
         fileobj = BytesIO(fileobj)
-        return super(BufferedStreamDataTap, self).save(fileobj)
+        return super(BufferedStreamDataTap, self).send(fileobj)
 
 class FileDataTap(StreamDataTap):
     '''
@@ -56,12 +60,12 @@ class FileDataTap(StreamDataTap):
             kwargs['instream'] = open(filename, 'r')
         super(FileDataTap, self).__init__(**kwargs)
     
-    def save(self, filename):
+    def send(self, filename):
         if isinstance(filename, basestring):
             fileobj = open(filename, 'w')
         else:
             fileobj = filename
-        return super(FileDataTap, self).save(fileobj)
+        return super(FileDataTap, self).send(fileobj)
 
 register_datatap('File', FileDataTap)
 
@@ -80,10 +84,10 @@ class URLDataTap(BufferedStreamDataTap):
             kwargs['instream'] = urllib2.open(url)
         super(URLDataTap, self).__init__(**kwargs)
     
-    def save(self, url):
+    def send(self, url):
         #TODO i think requests might make this easier and better
         fileobj = requests.open(url, 'w')
-        return super(URLDataTap, self).save(fileobj)
+        return super(URLDataTap, self).send(fileobj)
 
 register_datatap('URL', URLDataTap)
 

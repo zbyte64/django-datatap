@@ -16,4 +16,7 @@ class MemoryDataTap(DataTap):
         '''
         for item in self.instream:
             yield item
+    
+    def write(self, chunk):
+        self.instream.append(chunk)
 

@@ -9,9 +9,16 @@ except ImportError:
 
 
 class DataTap(object):
-    def __init__(self, instream=None, filetap=None):
+    def __init__(self, instream=None, filetap=None, domain=None):
+        '''
+        
+        :param instream: A source for the datatap to read from
+        :param filetap: A `FileTap` instance that handles reading and writing of assets
+        :param domain: Force the datatap to export to this specified domain
+        '''
         self.instream = instream
         self.filetap = filetap
+        self._domain = domain
         super(DataTap, self).__init__()
         self.item_stream = self.get_item_stream()
     
@@ -30,6 +37,8 @@ class DataTap(object):
         '''
         Returns the target domain this data tap will be exporting to
         '''
+        if self._domain:
+            return self._domain
         return self.get_domain()
     
     def close(self):
@@ -53,6 +62,9 @@ class DataTap(object):
                 result.append(self.read_iter.next())
         return result
     
+    def write(self, chunk):
+        raise NotImplementedError, 'This backend does not support writes'
+    
     def __iter__(self):
         return iter(self.item_stream)
     
@@ -64,15 +76,14 @@ class DataTap(object):
         '''
         return getattr(self, 'get_%s_stream' % self.domain)(self.instream)
     
-    def save(self, fileobj):
+    def send(self, datatap):
         '''
-        Write the stream to a file like object
+        Send this datatap stream to another datatap or stream
         '''
         for item in self:
             if not isinstance(item, basestring):
                 item = force_text(item)
-            print 'writing:', item
-            fileobj.write(item)
+            datatap.write(item)
     
     def detect_originating_datatap(self):
         '''
@@ -102,25 +113,28 @@ class DataTap(object):
         return cls(*args, **kwargs)
     
     @classmethod
-    def load_from_command_line_for_write(cls, arglist, instream=None):
+    def load_from_command_line_for_write(cls, arglist, instream):
         '''
         Retuns an instantiated DataTap with the provided arguments from commandline
         '''
         parser = OptionParser(option_list=cls.command_option_list)
         options, args = parser.parse_args(arglist)
         kwargs = options.__dict__
-        if instream is not None:
-            kwargs['instream'] = instream
+        kwargs['instream'] = instream
         
         #the default is to assume that args[0] is where we wish to save
-        if args:
-            target = args.pop(0)
+        #of if we already have a commit function, use that instead
+        if not hasattr(cls, 'commit'):
+            if args:
+                target = args.pop(0)
+            else:
+                target = sys.stdout
+            datatap = cls(*args, **kwargs)
+            def commit(*a, **k):
+                datatap.send(target)
+            datatap.commit = commit
         else:
-            target = sys.stdout
-        datatap = cls(*args, **kwargs)
-        def commit(*a, **k):
-            datatap.save(target)
-        datatap.commit = commit
+            datatap = cls(*args, **kwargs)
         return datatap
 
 class FileTap(object):

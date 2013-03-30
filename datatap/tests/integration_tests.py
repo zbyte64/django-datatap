@@ -12,7 +12,7 @@ class ModelToJsonIntegrationTestCase(unittest.TestCase):
     def test_store(self):
         iostream = BytesIO()
         tap = StreamDataTap(JSONDataTap(ModelDataTap([ContentType])))
-        tap.save(iostream)
+        tap.send(iostream)
         items = json.loads(iostream.getvalue())
         self.assertEqual(len(items), ContentType.objects.all().count())
     
@@ -27,8 +27,7 @@ class ModelToJsonIntegrationTestCase(unittest.TestCase):
         }
         iostream = BytesIO(json.dumps([item]))
         tap = ModelDataTap(JSONDataTap(StreamDataTap(iostream)))
-        result = list(tap)
+        tap.commit()
         
-        self.assertEqual(len(result), 1)
-        self.assertTrue(isinstance(result[0], Group))
-        self.assertEqual(result[0].name, 'testgroup')
+        self.assertTrue(Group.objects.filter(pk=5).exists())
+        self.assertEqual(Group.objects.get(pk=5).name, 'testgroup')
