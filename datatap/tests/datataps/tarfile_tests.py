@@ -6,8 +6,8 @@ from django.utils import unittest
 from django.core.files.base import File, ContentFile as BaseContentFile
 from django.core.files.storage import DefaultStorage
 
-from datatap.datataps.tarfile import TarFileDataTap
-from datatap.datataps import MemoryDataTap, StreamDataTap, ZipFileDataTap
+from datatap.datataps.tarfile import TarFileDataTap, WritableTarExtFile
+from datatap.datataps import MemoryDataTap, StreamDataTap
 
 
 class ContentFile(BaseContentFile): #for ease with Django 1.3
@@ -23,6 +23,8 @@ class TarFileDataTapTestCase(unittest.TestCase):
         tartap = TarFileDataTap(instream)
         archive_stream = io.BytesIO()
         response = tartap.send(archive_stream)
+        
+        archive_stream.seek(0)
         archive = tarfile.TarFile(fileobj=archive_stream)
         
         self.assertTrue('manifest.json' in archive.getnames())
@@ -35,16 +37,16 @@ class TarFileDataTapTestCase(unittest.TestCase):
         }
         archive_stream = io.BytesIO()
         archive = tarfile.TarFile(fileobj=archive_stream, mode='w')
-        tinfo = tarfile.TarInfo('manifest.json')
         payload = json.dumps([item])
-        tinfo.size = len(payload)
-        file_obj = io.BytesIO(payload)
-        archive.addfile(tinfo, file_obj)
+        tarextfile = WritableTarExtFile(archive, 'manifest.json', payload)
+        tarextfile.save()
         archive.close()
         
+        archive_stream.seek(0)
         archive = tarfile.TarFile(fileobj=archive_stream)
         self.assertTrue('manifest.json' in archive.getnames(), "Apparently I don't know how to make proper tarfiles")
         
+        archive_stream.seek(0)
         intap = MemoryDataTap(TarFileDataTap(StreamDataTap(archive_stream)))
         result = list(intap)
         
@@ -61,9 +63,10 @@ class TarFileDataTapTestCase(unittest.TestCase):
         archive_stream = io.BytesIO()
         response = tartap.send(archive_stream)
         
+        archive_stream.seek(0)
         archive = tarfile.TarFile(fileobj=archive_stream)
         payload = archive.extractfile('manifest.json').read()
-        self.assertEqual('{"test": "item", "readme": {"path": "readme.txt", "__type__": "File"}}', payload)
+        self.assertEqual('[{"test": "item", "readme": {"path": "readme.txt", "__type__": "File"}}]', payload)
         readme = archive.extractfile('readme.txt').read()
         self.assertEqual(readme, 'Just some file, move along')
     
@@ -81,26 +84,18 @@ class TarFileDataTapTestCase(unittest.TestCase):
                  'path':'assets/readme2.txt',}
             },
         ]
-        tinfo = tarfile.TarInfo('manifest.json')
-        file_obj = io.BytesIO(json.dumps(in_stream))
-        tinfo.size = len(file_obj.read())
-        file_obj.seek(0)
-        archive.addfile(tinfo, file_obj)
+        tarextfile = WritableTarExtFile(archive, 'manifest.json', json.dumps(in_stream))
+        tarextfile.save()
         
-        tinfo = tarfile.TarInfo('assets/readme.txt')
-        file_obj = io.BytesIO('readme1')
-        tinfo.size = len(file_obj.read())
-        file_obj.seek(0)
-        archive.addfile(tinfo, file_obj)
+        tarextfile = WritableTarExtFile(archive, 'assets/readme.txt', 'readme1')
+        tarextfile.save()
         
-        tinfo = tarfile.TarInfo('assets/readme2.txt')
-        file_obj = io.BytesIO('readme2')
-        tinfo.size = len(file_obj.read())
-        file_obj.seek(0)
-        archive.addfile(tinfo, file_obj)
-        
+        tarextfile = WritableTarExtFile(archive, 'assets/readme2.txt', 'readme2')
+        tarextfile.save()
+        print archive.getnames()
         archive.close()
         
+        archive_stream.seek(0)
         tap = TarFileDataTap(StreamDataTap(archive_stream))
         items = list(tap.get_item_stream())
         self.assertEqual(len(items), 2)

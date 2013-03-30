@@ -18,6 +18,21 @@ class DjangoTarExtFile(File):
         self.name = tarinfo.name
         self._size = tarinfo.size
 
+class WritableTarExtFile(BytesIO):
+    def __init__(self, archive, path, payload):
+        self.archive = archive
+        self.path = path
+        super(WritableTarExtFile, self).__init__(payload)
+    
+    def save(self):
+        self.seek(0)
+        payload = self.getvalue()
+        tinfo = tarfile.TarInfo(self.path)
+        tinfo.size = len(payload)
+        self.seek(0)
+        self.archive.addfile(tinfo, self)
+    
+
 class TarFileTap(FileTap):
     def __init__(self, archive):
         self.archive = archive
@@ -63,9 +78,8 @@ class TarFileDataTap(DataTap):
         else:
             manifest = ''.join(encoded_stream)
         
-        tarinfo = tarfile.TarInfo('manifest.json')
-        tarinfo.size = len(manifest)
-        archive.addfile(tarinfo, BytesIO(manifest))
+        manifest_file = WritableTarExtFile(archive, 'manifest.json', manifest)
+        manifest_file.save()
         archive.close()
     
     def get_primitive_stream(self, instream):
