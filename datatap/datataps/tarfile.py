@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import tarfile
-from StringIO import StringIO
+from io import BytesIO
 from optparse import make_option
 
 from django.core.files.base import File
@@ -52,7 +52,7 @@ class TarFileDataTap(DataTap):
                 payload = for_datatap.get_ident()
                 tarinfo = tarfile.TarInfo('originator.txt')
                 tarinfo.size = len(payload)
-                self.tarfile.addfile(tarinfo, payload)
+                self.tarfile.addfile(tarinfo, BytesIO(payload))
         else:
             self.object_stream_file = self.tarfile.extractfile('manifest.json')
         self.object_stream = JSONStreamDataTap(self.object_stream_file)
@@ -61,11 +61,11 @@ class TarFileDataTap(DataTap):
     def detect_originating_datatap(self):
         return lookup_datatap(self.tarfile.extractfile('originator.txt').read())
     
-    class OutFile(StringIO):
+    class OutFile(BytesIO):
         def __init__(self, datatap, path):
             self.datatap = datatap
             self.path = path
-            StringIO.__init__(self)
+            BytesIO.__init__(self)
         
         @property
         def tarfile(self):
@@ -74,8 +74,9 @@ class TarFileDataTap(DataTap):
         def close(self):
             if self in self.datatap.writing_files:
                 tarinfo = tarfile.TarInfo(self.path)
-                payload = self.getvalue()
-                tarinfo.size = len(payload)
+                tarinfo.size = len(self.getvalue())
+                self.seek(0)
+                payload = self
                 self.tarfile.addfile(tarinfo, payload)
                 self.datatap.writing_files.remove(self)
     
