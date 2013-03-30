@@ -92,7 +92,6 @@ class TarFileDataTapTestCase(unittest.TestCase):
         
         tarextfile = WritableTarExtFile(archive, 'assets/readme2.txt', 'readme2')
         tarextfile.save()
-        print archive.getnames()
         archive.close()
         
         archive_stream.seek(0)

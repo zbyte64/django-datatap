@@ -35,7 +35,9 @@ class S3BucketDataTap(StreamDataTap):
             bucket_name = settings.AWS_STORAGE_BUCKET_NAME
         self.connection = S3Connection(aws_access_key_id, aws_secret_access_key)
         self.bucket = self.connection.get_bucket(bucket_name)
-        if key_name:
+        if key_name: 
+            #CONSIDER: without a key name or instream we are a primitive serializer acting much like a tarfile and assets in a dir
+            #would require paramater: key_directory
             assert instream is None, 'You cannot read from two sources, use .send(key_name) if you wish to write'
             key = self.bucket.get_key(key_name)
             instream = io.BytesIO()

@@ -1,7 +1,7 @@
 Welcome to Django DataTap's documentation
 ============================================
 
-django-datatap is a fixture system enabling applications to define their own fixture loading and dumping process.
+django-datatap is a fixture system enabling applications to define their own loading and dumping process while supporting file asset storage.
 
 Download: http://github.com/zbyte64/django-datatap
 

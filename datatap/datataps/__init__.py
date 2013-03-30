@@ -1,30 +1,28 @@
 '''
+Perhaps the funky usage of this code follows closely to the command line usage.
+
 Example usage::
 
-    from datatap.dataps import JSONStreamDataTap, ModelDataTap, ZipFileDataTap
+    from datatap.dataps import JSONDataTap, StreamDataTap, FileDataTap, ModelDataTap, ZipFileDataTap
     
     #with django models
-    outstream = JSONStreamDataTap(stream=sys.stdout)
-    outstream.open('w', for_datatap=ModelDataTap)
-    source = ModelDataTap(MyModel, User.objects.filter(is_active=True))
-    source.dump(outstream)
+    iostream = BytesIO()
+    tap = StreamDataTap(JSONDataTap(ModelDataTap([ContentType])))
+    tap.send(iostream)
     
-    instream = JSONStreamDataTap(stream=open('fixture.json', 'r'))
-    ModelDataTap.load(instream)
+    #read a model fixture
+    tap = ModelDataTap(JSONDataTap(FileDataTap('fixtures.json')))
+    for item in tap:
+        print item #a deserialized object with a save method
+    tap.commit() #save all the items
     
-    #give me all active users to stdout
-    ModelDataTap.store(JSONStreamDataTap(stream=sys.stdout), User.objects.filter(is_active=True))
+    #write a zip archive of active users and groups
+    tap = FileDataTap(ZipFileDataTap(ModelDataTap([User.objects.filter(is_active=True), Group])))
+    tap.send('users.zip')
     
-    #write Blog and BlogImages to a zipfile
-    archive = ZipFileDataTap(filename='myblog.zip')
-    archive.open('w', for_datatap=ModelDataTap)
-    #or do it in one line: archive = ZipFileDataTap(filename='myblog.zip', mode='w', for_datatap=ModelDataTap)
-    ModelDataTap.store(archive, Blog, BlogImages)
-    archive.close()
-    
-    #perhaps on another server:
-    archive = ZipFileDataTap(filename='myblog.zip', mode='r')
-    ModelDataTap.load(archive)
+    #comming soon:
+    tap = S3DataTap(ZipFileDataTap(ModelDataTap([User.objects.filter(is_active=True), Group])))
+    tap.send('exports/users.zip') #sends it to your s3 storage bucket
 
 '''
 from datatap.datataps.base import DataTap, FileTap

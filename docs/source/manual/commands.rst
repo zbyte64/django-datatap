@@ -4,10 +4,11 @@ Commands
 datatap
 -------
 
+Chain a series of datataps with the source starting at the left and the right most to write. Each datatap invocation is seperated by "--"
+
 Format::
 
-    manage.py datatap <source> <source vargs> -- <destination> <destination vargs>
-    manage.py datatap <source> <source vargs>
+    manage.py datatap <datataptype> <datatap vargs> [(-- <datataptype> <datatap vargs>), ...] (-- <destination datataptype> <datatap vargs>)
 
 
 When no destination is specified it will be autodected from the source or a JSON standard out stream will be used.
@@ -15,11 +16,10 @@ When no destination is specified it will be autodected from the source or a JSON
 
 Example command line usage::
 
-    manage.py datatap Model app1 app2 app3.model -- ZipFile --file=myfile.zip
+    manage.py datatap Model contenttypes -- Zip -- File archive.zip
     
-    #3rd party can register their own data taps
-    manage.py datatap DocKitCMS --app=customapp1 --app=customapp2 --collection=blog --publicresource=myblog > objects.json
+    manage.py datatap File archive.zip -- Zip -- Model
     
-    #destination data tap is autodetected
-    manage.py datatap ZipFile --file=myfile.zip
+    #3rd party apps can register their own data taps
+    manage.py datatap DocKitCMS --app=customapp1 --app=customapp2 --collection=blog --publicresource=myblog -- JSON -- Stream > objects.json
 

@@ -34,43 +34,22 @@ Datataps are classes able to serialize and deserialize objects in their domain. 
 
 Datatap includes a management command to allow dumping and loading to particular data stores (zip file, json file, S3, etc). Some datataps include the originating data tap so that the resulting data store can be automatically detected.
 
+===============
+Datatap Command
+===============
+
+Chain a series of datataps with the source starting at the left and the right most to write. Each datatap invocation is seperated by "--"
+
 Format::
 
-    manage.py datatap <source> <source vargs> -- <destination> <destination vargs>
-    manage.py datatap <source> <source vargs>
+    manage.py datatap <datataptype> <datatap vargs> [(-- <datataptype> <datatap vargs>), ...] (-- <destination datataptype> <datatap vargs>)
 
 Example command line usage::
 
-    manage.py datatap Model app1 app2 app3.model -- ZipFile --file=myfile.zip
+    manage.py datatap Model contenttypes -- Zip -- File archive.zip
     
-    #destination data tap is autodetected
-    manage.py datatap ZipFile --file=myfile.zip
+    manage.py datatap File archive.zip -- Zip -- Model
     
-    #3rd party can register their own data taps
-    manage.py datatap DocKitCMS --app=customapp1 --app=customapp2 --collection=blog --publicresource=myblog > objects.json
+    #3rd party apps can register their own data taps
+    manage.py datatap DocKitCMS --app=customapp1 --app=customapp2 --collection=blog --publicresource=myblog -- JSON -- Stream > objects.json
 
-Example code usage::
-
-    from datatap.dataps import JSONStreamDataTap, ModelDataTap, ZipFileDataTap
-    
-    #with django models
-    outstream = JSONStreamDataTap(stream=sys.stdout)
-    outstream.open('w', for_datatap=ModelDataTap)
-    source = ModelDataTap(MyModel, User.objects.filter(is_active=True))
-    source.dump(outstream)
-    
-    instream = JSONStreamDataTap(stream=open('fixture.json', 'r'))
-    ModelDataTap.load(instream)
-    
-    #give me all active users to stdout
-    ModelDataTap.store(JSONStreamDataTap(stream=sys.stdout), User.objects.filter(is_active=True))
-    
-    #write Blog and BlogImages to a zipfile
-    archive = ZipFileDataTap(filename='myblog.zip')
-    archive.open('w', for_datatap=ModelDataTap)
-    #or do it in one line: archive = ZipFileDataTap(filename='myblog.zip', mode='w', for_datatap=ModelDataTap)
-    ModelDataTap.store(archive, Blog, BlogImages)
-    archive.close()
-    
-    archive = ZipFileDataTap(filename='myblog.zip', mode='r')
-    ModelDataTap.load(archive)

@@ -11,7 +11,6 @@ DataTap
 .. autoclass:: DataTap
    :members:
 
-
 MemoryDataTap
 =============
 
@@ -19,10 +18,24 @@ MemoryDataTap
    :show-inheritance:
    :members:
 
-JSONStreamDataTap
+StreamDataTap
+=============
+
+.. autoclass:: StreamDataTap
+   :show-inheritance:
+   :members:
+
+FileDataTap
+=============
+
+.. autoclass:: FileDataTap
+   :show-inheritance:
+   :members:
+
+JSONDataTap
 =================
 
-.. autoclass:: JSONStreamDataTap
+.. autoclass:: JSONDataTap
    :show-inheritance:
    :members:
 
