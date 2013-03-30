@@ -1,4 +1,5 @@
 import io
+from optparse import Option, OptionParser
 
 from boto.s3.connection import S3Connection
 
@@ -49,5 +50,23 @@ class S3BucketDataTap(StreamDataTap):
         key = self.bucket.new_key(key_name)
         fileobj = S3Upload(key)
         return super(S3BucketDataTap, self).send(fileobj)
+    
+    command_option_list = [
+        Option('--key-name', action='store', dest='key_name'),
+        Option('--bucket', action='store', dest='bucket_name'),
+        Option('--access-key-id', action='store', dest='aws_access_key_id'),
+        Option('--secret-access-key', action='store', dest='aws_secret_access_key'),
+    ]
+    
+    @classmethod
+    def load_from_command_line(cls, arglist, instream=None):
+        parser = OptionParser(option_list=cls.command_option_list)
+        options, args = parser.parse_args(arglist)
+        kwargs = options.__dict__
+        kwargs['instream'] = instream
+        if not kwargs.get('key_name') and args:
+            kwargs['key_name'] = args.pop(0)
+        return cls(**kwargs)
 
 register_datatap('S3Bucket', S3BucketDataTap)
+

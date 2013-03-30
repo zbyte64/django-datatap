@@ -1,4 +1,4 @@
-from optparse import OptionParser
+from optparse import OptionParser, Option
 from collections import deque
 
 from django.db import models
@@ -97,6 +97,10 @@ class ModelDataTap(DataTap):
         self.deserialized_objects = None
         for instance in self:
             instance.save()
+    
+    command_option_list = [
+        Option('--disable_natural_keys', action='store_false', dest='use_natural_keys'),
+    ]
     
     @classmethod
     def load_from_command_line(cls, arglist, instream=None):

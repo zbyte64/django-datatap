@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import tarfile
+from optparse import Option
 from io import BytesIO
 
 from django.core.files.base import File
@@ -55,6 +56,10 @@ class TarFileDataTap(DataTap):
     '''
     Reads and writes objects from a zipfile
     '''
+    def __init__(self, instream=None, compression=None, **kwargs):
+        self.compression = compression
+        super(TarFileDataTap, self).__init__(instream, **kwargs)
+    
     def get_domain(self):
         if self.instream.domain == 'bytes':
             #file as our input, we emit text representation of primitives
@@ -70,7 +75,10 @@ class TarFileDataTap(DataTap):
         return TarFileTap(archive)
     
     def send(self, fileobj):
-        archive = tarfile.TarFile(fileobj=fileobj, mode='w')
+        mode = 'w'
+        if self.compression:
+            mode += ':' + self.compression
+        archive = tarfile.TarFile(fileobj=fileobj, mode=mode)
         filetap = self.get_filetap(archive)
         encoded_stream = JSONDataTap(self.item_stream, filetap=filetap) #encode our objects into json
         if isinstance(encoded_stream, basestring):
@@ -84,12 +92,20 @@ class TarFileDataTap(DataTap):
     
     def get_primitive_stream(self, instream):
         #instream is a bytes datatap but we want the file like object it reads
-        archive = tarfile.TarFile(fileobj=instream.item_stream, mode='r')
+        mode = 'r'
+        if self.compression:
+            mode += ':' + self.compression
+        archive = tarfile.TarFile(fileobj=instream.item_stream, mode=mode)
         filetap = self.get_filetap(archive)
         return JSONDataTap(StreamDataTap(archive.extractfile('manifest.json')), filetap=filetap)
     
     def get_bytes_stream(self, instream):
         return instream
+    
+    command_option_list = [
+        Option('--gzip', action='store_const', const='gz', dest='compression'),
+        Option('--bz', action='store_const', const='bz', dest='compression'),
+    ]
 
 register_datatap('TarFile', TarFileDataTap)
 
