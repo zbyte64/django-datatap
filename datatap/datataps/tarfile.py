@@ -2,13 +2,12 @@ from __future__ import absolute_import
 
 import tarfile
 from io import BytesIO
-from optparse import make_option
 
 from django.core.files.base import File
 
-from datatap.loading import register_datatap, lookup_datatap
-from datatap.datataps.base import DataTap
-from datatap.datataps.jsonstream import JSONStreamDataTap
+from datatap.loading import register_datatap
+from datatap.datataps.base import DataTap, FileTap
+from datatap.datataps.streams import StreamDataTap, JSONDataTap
 
 
 class DjangoTarExtFile(File):
@@ -18,101 +17,62 @@ class DjangoTarExtFile(File):
         self.mode = 'r'
         self.name = tarinfo.name
         self._size = tarinfo.size
+
+class TarFileTap(FileTap):
+    def __init__(self, archive):
+        self.archive = archive
     
-    #def seek(self, position):
-    #    if position != 0:
-    #        #this will raise an unsupported operation
-    #        return self.file.seek(position)
-    #    #TODO if we have already done a read, reopen file
+    def write_file(self, file_obj, path):
+        #TODO write in chunks
+        #TODO write in a directory
+        self.archive.writestr(path, file_obj.read())
+        return path
+    
+    def read_file(self, path):
+        zipextfile = self.archive.open(path, 'r')
+        zipinfo = self.archive.getinfo(path)
+        return DjangoTarExtFile(zipextfile, zipinfo)
 
 class TarFileDataTap(DataTap):
     '''
     Reads and writes objects from a zipfile
     '''
-    command_option_list = [
-        make_option('--file',
-            action='store',
-            type='string',
-            dest='filename',
-        )
-    ]
+    def get_domain(self):
+        if self.instream.domain == 'bytes':
+            #file as our input, we emit text representation of primitives
+            return 'primitive'
+        if self.instream.domain == 'primitive':
+            #text representation of primitives as our input, we write to file
+            #CONSIDER: if our target is a file, then the parent constructor must pass it in!
+            #or we return a callable that takes the desired file object
+            return 'bytes'
+        assert False, 'Unrecognized instream domain: %s' % self.instream.domain
     
-    def __init__(self, filename, **kwargs):
-        self.filename = filename
-        super(TarFileDataTap, self).__init__(**kwargs)
+    def get_filetap(self, archive):
+        return TarFileTap(archive)
     
-    def open(self, mode='r', for_datatap=None):
-        if self.mode == mode:
-            return
-        self.writing_files = set()
-        self.tarfile = tarfile.TarFile(self.filename, mode)
-        if 'w' in mode:
-            self.object_stream_file = self.get_write_file_object('manifest.json')
-            if for_datatap:
-                payload = for_datatap.get_ident()
-                tarinfo = tarfile.TarInfo('originator.txt')
-                tarinfo.size = len(payload)
-                self.tarfile.addfile(tarinfo, BytesIO(payload))
+    def send(self, fileobj):
+        archive = tarfile.TarFile(fileobj=fileobj, mode='w')
+        filetap = self.get_filetap(archive)
+        encoded_stream = JSONDataTap(self.item_stream, filetap=filetap) #encode our objects into json
+        if isinstance(encoded_stream, basestring):
+            manifest = encoded_stream
         else:
-            self.object_stream_file = self.tarfile.extractfile('manifest.json')
-        self.object_stream = JSONStreamDataTap(self.object_stream_file)
-        return super(TarFileDataTap, self).open(mode, for_datatap)
-    
-    def detect_originating_datatap(self):
-        return lookup_datatap(self.tarfile.extractfile('originator.txt').read())
-    
-    class OutFile(BytesIO):
-        def __init__(self, datatap, path):
-            self.datatap = datatap
-            self.path = path
-            BytesIO.__init__(self)
+            manifest = ''.join(encoded_stream)
         
-        @property
-        def tarfile(self):
-            return self.datatap.tarfile
-        
-        def close(self):
-            if self in self.datatap.writing_files:
-                tarinfo = tarfile.TarInfo(self.path)
-                tarinfo.size = len(self.getvalue())
-                self.seek(0)
-                payload = self
-                self.tarfile.addfile(tarinfo, payload)
-                self.datatap.writing_files.remove(self)
+        tarinfo = tarfile.TarInfo('manifest.json')
+        tarinfo.size = len(manifest)
+        archive.addfile(tarinfo, BytesIO(manifest))
+        archive.close()
     
-    def get_write_file_object(self, path):
-        outfile = self.OutFile(self, path)
-        self.writing_files.add(outfile)
-        return outfile
+    def get_primitive_stream(self, instream):
+        #instream is a bytes datatap but we want the file like object it reads
+        archive = tarfile.TarFile(fileobj=instream.item_stream, mode='r')
+        filetap = self.get_filetap(archive)
+        return JSONDataTap(StreamDataTap(archive.extractfile('manifest.json')), filetap=filetap)
     
-    def close(self):
-        super(TarFileDataTap, self).close()
-        self.object_stream.close()
-        for outfile in list(self.writing_files):
-            outfile.close()
-        self.tarfile.close()
-    
-    def write_stream(self, instream):
-        self.object_stream.write_stream(instream, filetap=self.get_filetap())
-    
-    def write_item(self, item):
-        self.object_stream.write_item(item, filetap=self.get_filetap())
-    
-    def write_file(self, file_obj, path):
-        #TODO write in chunks
-        #TODO write in a directory
-        self.get_write_file_object(path).write(file_obj.read())
-        return path
-    
-    def read_file(self, path):
-        tarextfile = self.tarfile.open(path)
-        tarinfo = self.tarfile.getmember(path)
-        return DjangoTarExtFile(tarextfile, tarinfo)
-    
-    def get_raw_item_stream(self, filetap=None):
-        if filetap is None:
-            filetap = self.get_filetap()
-        return self.object_stream.get_item_stream(filetap=filetap)
+    def get_bytes_stream(self, instream):
+        return instream
 
 register_datatap('TarFile', TarFileDataTap)
 
