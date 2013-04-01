@@ -2,6 +2,7 @@ from optparse import OptionParser, Option
 from collections import deque
 
 from django.db import models
+from django.db import transaction
 from django.core.files import File
 from django.core.serializers.python import Serializer, Deserializer
 from django.utils.encoding import is_protected_type
@@ -90,13 +91,20 @@ class ModelDataTap(DataTap):
             item.save()
             yield item.object
     
+    @transaction.commit_manually
     def commit(self):
+        if transaction.is_dirty():
+            transaction.commit()
         while self.deserialized_objects:
             instance = self.deserialized_objects.popleft()
             instance.save()
+            transaction.commit()
         self.deserialized_objects = None
         for instance in self:
             instance.save()
+            transaction.commit()
+        if transaction.is_dirty():
+            transaction.commit()
     
     command_option_list = [
         Option('--disable_natural_keys', action='store_false', dest='use_natural_keys'),
