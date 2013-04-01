@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import tarfile
 from optparse import Option
 from io import BytesIO
+from copy import copy
 
 from django.core.files.base import File
 
@@ -48,8 +49,11 @@ class TarFileTap(FileTap):
         self.archive.addfile(tarinfo, BytesIO(payload))
         return path
     
-    def read_file(self, path):
-        return self.files[path]
+    def read_file(self, path, original_path):
+        loaded_file = copy(self.files[path])
+        loaded_file.name = original_path
+        loaded_file._committed = False
+        return loaded_file
 
 class TarFileDataTap(DataTap):
     '''

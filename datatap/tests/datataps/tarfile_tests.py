@@ -66,7 +66,7 @@ class TarFileDataTapTestCase(unittest.TestCase):
         archive_stream.seek(0)
         archive = tarfile.TarFile(fileobj=archive_stream)
         payload = archive.extractfile('manifest.json').read()
-        self.assertEqual('[{"test": "item", "readme": {"path": "readme.txt", "__type__": "File"}}]', payload)
+        self.assertEqual('[{"test": "item", "readme": {"path": "readme.txt", "__type__": "File", "storage_path": "readme.txt"}}]', payload)
         readme = archive.extractfile('readme.txt').read()
         self.assertEqual(readme, 'Just some file, move along')
     
@@ -77,10 +77,12 @@ class TarFileDataTapTestCase(unittest.TestCase):
         in_stream = [
             {'test1': 'item', 'readme': 
                 {'__type__':'File',
+                 'storage_path':'assets/readme.txt',
                  'path':'assets/readme.txt',}
             },
             {'test2': 'item2', 'readme': 
                 {'__type__':'File',
+                 'storage_path':'assets/readme2.txt',
                  'path':'assets/readme2.txt',}
             },
         ]

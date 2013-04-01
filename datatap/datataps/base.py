@@ -148,7 +148,7 @@ class FileTap(object):
         '''
         return path
     
-    def read_file(self, path):
+    def read_file(self, storage_path, original_path):
         '''
         Returns a django file object belonging to the serialized path
         '''

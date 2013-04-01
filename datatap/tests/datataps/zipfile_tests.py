@@ -54,7 +54,7 @@ class ZipFileDataTapTestCase(unittest.TestCase):
         
         archive = zipfile.ZipFile(archive_stream, 'r')
         payload = archive.read('manifest.json')
-        self.assertEqual('[{"test": "item", "readme": {"path": "readme.txt", "__type__": "File"}}]', payload)
+        self.assertEqual('[{"test": "item", "readme": {"path": "readme.txt", "__type__": "File", "storage_path": "readme.txt"}}]', payload)
         readme = archive.read('readme.txt')
         self.assertEqual(readme, 'Just some file, move along')
     
@@ -65,10 +65,12 @@ class ZipFileDataTapTestCase(unittest.TestCase):
         in_stream = [
             {'test1': 'item', 'readme': 
                 {'__type__':'File',
+                 'storage_path':'assets/readme.txt',
                  'path':'assets/readme.txt',}
             },
             {'test2': 'item2', 'readme': 
                 {'__type__':'File',
+                 'storage_path':'assets/readme2.txt',
                  'path':'assets/readme2.txt',}
             },
         ]

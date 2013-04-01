@@ -28,10 +28,13 @@ class ZipFileTap(FileTap):
         self.archive.writestr(path, file_obj.read())
         return path
     
-    def read_file(self, path):
+    def read_file(self, path, original_path):
         zipextfile = self.archive.open(path, 'r')
         zipinfo = self.archive.getinfo(path)
-        return DjangoZipExtFile(zipextfile, zipinfo)
+        loaded_file = DjangoZipExtFile(zipextfile, zipinfo)
+        loaded_file.name = original_path
+        loaded_file._committed = False
+        return loaded_file
 
 class ZipFileDataTap(DataTap):
     '''

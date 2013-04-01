@@ -1,4 +1,5 @@
 import io
+import os
 from optparse import Option, OptionParser
 
 from boto.s3.connection import S3Connection
@@ -38,11 +39,11 @@ class S3DataTap(StreamDataTap):
     '''
     def __init__(self, instream=None, key_name=None, aws_access_key_id=None, aws_secret_access_key=None, bucket_name=None, **kwargs):
         if aws_access_key_id is None:
-            aws_access_key_id = settings.AWS_ACCESS_KEY_ID
+            aws_access_key_id = getattr(settings, 'AWS_ACCESS_KEY_ID', None) or os.environ['AWS_ACCESS_KEY_ID']
         if aws_secret_access_key is None:
-            aws_secret_access_key = settings.AWS_SECRET_ACCESS_KEY
+            aws_secret_access_key = getattr(settings, 'AWS_SECRET_ACCESS_KEY', None) or os.environ['AWS_SECRET_ACCESS_KEY']
         if bucket_name is None:
-            bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+            bucket_name = getattr(settings, 'AWS_STORAGE_BUCKET_NAME', None) or os.environ['AWS_STORAGE_BUCKET_NAME']
         self.connection = S3Connection(aws_access_key_id, aws_secret_access_key)
         self.bucket = self.connection.get_bucket(bucket_name)
         if key_name: 
